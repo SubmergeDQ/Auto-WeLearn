@@ -24,3 +24,6 @@ cookies.txt
 .idea/
 .DS_Store
 Thumbs.db
+
+# tsup 处理 TS 配置时生成的临时文件
+*.bundled_*.mjs
