@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head><title>Unit 1</title></head>
+<body>
+<div data-main="">
+  <article class="block_white">
+    <div class="direction">Fill in the blanks and choose the best answer.</div>
+
+    <!-- 1. 填空：result 带中文注释，权威答案是 data-solution -->
+    <div data-controltype="filling" data-score="10" data-id="t1_1">
+      <span data-itemtype="sn">1.</span>
+      <span data-itemtype="stem">He plays the <span>cello</span> very well.</span>
+      <div>
+        <input type="text" data-itemtype="input" data-solution="cello" readonly="" />
+        <div data-itemtype="myresult"><span style="color:#ccc;">click here</span></div>
+        <div data-itemtype="result">cello（大提琴）</div>
+      </div>
+    </div>
+
+    <!-- 2. 填空：斜杠分隔多个可接受答案，result 取其中一段 -->
+    <div data-controltype="filling" data-score="10" data-id="t1_2">
+      <span data-itemtype="sn">2.</span>
+      <span data-itemtype="stem">After reaching <span>for</span> the summit, he stopped.</span>
+      <div>
+        <input type="text" data-itemtype="input" data-solution="reaching/for" />
+        <div data-itemtype="result">for</div>
+      </div>
+    </div>
+
+    <!-- 3. 填空：段首带罗马数字前缀，需原样透传 -->
+    <div data-controltype="filling" data-score="10" data-id="t1_3">
+      <span data-itemtype="sn">3.</span>
+      <span data-itemtype="stem">envious</span>
+      <div>
+        <input type="text" data-itemtype="input" data-solution="i. wanting sth. that sb. else has" />
+        <div data-itemtype="result">i. wanting sth. that sb. else has</div>
+      </div>
+    </div>
+
+    <!-- 4. 长填空：result 为空，退回 data-solution -->
+    <div data-controltype="fillinglong" data-score="10" data-id="t1_4">
+      <span data-itemtype="sn">4.</span>
+      <span data-itemtype="stem">Why did he refuse the offer?</span>
+      <div>
+        <textarea data-itemtype="textarea" data-solution="Because he wanted to stay independent."></textarea>
+        <div data-itemtype="result"></div>
+      </div>
+    </div>
+
+    <!-- 5. 判断题：答案标记在第二个选项上，答案为选项字母 -->
+    <div class="normal_choice checkbox_choice">
+      <div data-controltype="choice" data-score="10" data-id="t1_5">
+        <ul data-itemtype="options">
+          <li><span>T</span></li>
+          <li data-solution=""><span>F</span></li>
+        </ul>
+        <div data-itemtype="result"></div>
+        <div><span data-itemtype="sn">5.</span><span data-itemtype="stem">The story is a true story.</span></div>
+      </div>
+    </div>
+
+    <!-- 6. 单选：选项带字母前缀，答案只取字母 -->
+    <div class="normal_choice">
+      <div data-controltype="choice" data-score="10" data-id="t1_6">
+        <ul data-itemtype="options">
+          <li><span><span>A.</span></span><span>Option one</span></li>
+          <li><span><span>B.</span></span><span>Option two</span></li>
+          <li data-solution=""><span><span>C.</span></span><span>Option three</span></li>
+          <li><span><span>D.</span></span><span>Option four</span></li>
+        </ul>
+        <div data-itemtype="result"></div>
+      </div>
+    </div>
+
+    <!-- 7. 多选：两个正确项，用逗号连接 -->
+    <div class="normal_choice checkbox_choice">
+      <div data-controltype="choice" data-score="10" data-id="t1_7">
+        <ul data-itemtype="options">
+          <li data-solution=""><span><span>A.</span></span><span>First</span></li>
+          <li><span><span>B.</span></span><span>Second</span></li>
+          <li data-solution=""><span><span>C.</span></span><span>Third</span></li>
+        </ul>
+        <div data-itemtype="result"></div>
+      </div>
+    </div>
+
+    <!-- 8. 口语题：应计入 oral 而不产出题目 -->
+    <div data-controltype="record" class="oral_record" data-id="t1_8">
+      <span data-itemtype="stem">Read the sentence aloud.</span>
+      <div data-itemtype="result">ignored</div>
+    </div>
+
+    <!-- 9. 无答案的填空块：应产生 warning 而不是空答案 -->
+    <div data-controltype="filling" data-id="t1_9">
+      <span data-itemtype="stem">Broken question</span>
+      <div><div data-itemtype="result"></div></div>
+    </div>
+  </article>
+</div>
+</body>
+</html>
