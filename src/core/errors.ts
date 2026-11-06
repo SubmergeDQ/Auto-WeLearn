@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'BAD_CREDENTIALS'
   | 'SSO_FLOW_CHANGED'
   | 'PARSE_WARNING'
+  | 'PLATFORM_REJECTED'
   | 'UNKNOWN';
 
 /** 这些错误码重试有意义；4xx 与契约变更不重试 */

@@ -2,8 +2,9 @@ import { AppError } from '../errors.js';
 import type { Logger } from '../../logging/logger.js';
 import type { Session } from '../http/session.js';
 import { ACCEPT_JSON } from '../http/headers.js';
-import { PATHS, refStudyShort } from './endpoints.js';
+import { PATHS, refStudyCourse, refStudyShort } from './endpoints.js';
 import { isLoginWall, isRetOk, parseJsonOrThrow } from './response.js';
+import { parseScormTime } from '../parse/scorm-time.js';
 
 /**
  * SCO 相关接口。
@@ -127,4 +128,169 @@ export function parseCmiComment(text: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** 写操作需要的上下文，四个字段缺一不可 */
+export interface ScoContext {
+  cid: string;
+  scoid: string;
+  uid: string;
+  classid: string;
+}
+
+function refererFor(session: Session, ctx: ScoContext): string {
+  return refStudyCourse(session.baseUrl, { cid: ctx.cid, classid: ctx.classid, scoid: ctx.scoid });
+}
+
+/** 注册本次学习会话 */
+export async function startSco(
+  session: Session,
+  ctx: ScoContext,
+  opts: { signal?: AbortSignal } = {},
+): Promise<boolean> {
+  const text = await postScoAction(
+    session,
+    { action: 'startsco160928', cid: ctx.cid, scoid: ctx.scoid, uid: ctx.uid },
+    { referer: refererFor(session, ctx), signal: opts.signal },
+  );
+  return scoOk(text);
+}
+
+/** 提交 SCORM 数据与答题记录。isend 必须是字符串 "False"（首字母大写） */
+export async function setScoInfo(
+  session: Session,
+  ctx: ScoContext,
+  data: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<boolean> {
+  const text = await postScoAction(
+    session,
+    {
+      action: 'setscoinfo',
+      cid: ctx.cid,
+      scoid: ctx.scoid,
+      uid: ctx.uid,
+      data,
+      isend: 'False',
+    },
+    { referer: refererFor(session, ctx), signal: opts.signal },
+  );
+  return scoOk(text);
+}
+
+export interface SaveScoParams {
+  crate: number;
+  sessionTime: number;
+  totalTime: number;
+  progress?: number;
+  cstatus?: string;
+}
+
+/** 保存进度与成绩 */
+export async function saveScoInfo(
+  session: Session,
+  ctx: ScoContext,
+  params: SaveScoParams,
+  opts: { signal?: AbortSignal } = {},
+): Promise<boolean> {
+  const text = await postScoAction(
+    session,
+    {
+      action: 'savescoinfo160928',
+      cid: ctx.cid,
+      scoid: ctx.scoid,
+      uid: ctx.uid,
+      progress: String(params.progress ?? 100),
+      crate: String(Math.round(params.crate)),
+      status: 'unknown',
+      cstatus: params.cstatus ?? 'completed',
+      trycount: '0',
+      session_time: String(Math.max(0, Math.round(params.sessionTime))),
+      total_time: String(Math.max(0, Math.round(params.totalTime))),
+    },
+    { referer: refererFor(session, ctx), signal: opts.signal },
+  );
+  return scoOk(text);
+}
+
+export interface CmiSnapshot {
+  totalBefore: number;
+  sessionBefore: number;
+  cmi: Record<string, unknown>;
+}
+
+export type CmiReadResult =
+  | ({ ok: true } & CmiSnapshot)
+  /** uninitialized：从未提交过，平台没有 CMI（正常状态，totalBefore 应为 0） */
+  | { ok: false; reason: 'uninitialized' | 'unavailable' };
+
+/**
+ * 读取当前 CMI，拿到历史累计时长作为累加基线。
+ *
+ * 实测（附录 C-10）：从未学过的小节返回 `{"ret":-1, "msg":"学习数据不正确"}`，
+ * 这是「还没有 CMI」的正常状态，不是错误 —— 首次 setscoinfo 之后才存在 cmi。
+ * 因此默认 alreadyStarted=true 时不再补发 startsco（调用方已经发过了）。
+ */
+export async function getCmi(
+  session: Session,
+  ctx: ScoContext,
+  opts: { signal?: AbortSignal; logger?: Logger; alreadyStarted?: boolean } = {},
+): Promise<CmiReadResult> {
+  const referer = refererFor(session, ctx);
+
+  const read = async (): Promise<{ text: string; cmi: Record<string, unknown> | null }> => {
+    const text = await postScoAction(
+      session,
+      { action: 'getscoinfo_v7', uid: ctx.uid, cid: ctx.cid, scoid: ctx.scoid },
+      { referer, signal: opts.signal },
+    );
+    return { text, cmi: parseCmiComment(text) };
+  };
+
+  let { text, cmi } = await read();
+  const uninitialized = !cmi && text.includes('学习数据不正确');
+
+  // 仅当调用方尚未 startsco 时才补发（历史实现供时间模式使用，本流程不需要）
+  if (uninitialized && opts.alreadyStarted === false) {
+    opts.logger?.debug('CMI 未初始化，补发 startsco 后重试');
+    await startSco(session, ctx, opts);
+    const retry = await read();
+    cmi = retry.cmi;
+  }
+
+  if (!cmi) {
+    return { ok: false, reason: uninitialized ? 'uninitialized' : 'unavailable' };
+  }
+
+  return {
+    ok: true,
+    totalBefore: parseScormTime(cmi.total_time),
+    sessionBefore: parseScormTime(cmi.session_time),
+    cmi,
+  };
+}
+
+/**
+ * 心跳保活。等待期间必须周期性上报 session_time/total_time，
+ * 否则长时长的"挂机"容易被平台判为无效学习（这是 Node 版相对 Python 版的核心差异）。
+ */
+export async function keepSco(
+  session: Session,
+  ctx: ScoContext,
+  times: { sessionTime: number; totalTime: number },
+  opts: { signal?: AbortSignal } = {},
+): Promise<boolean> {
+  const text = await postScoAction(
+    session,
+    {
+      action: 'keepsco_with_getticket_with_updatecmitime',
+      uid: ctx.uid,
+      cid: ctx.cid,
+      scoid: ctx.scoid,
+      session_time: String(Math.max(0, Math.round(times.sessionTime))),
+      total_time: String(Math.max(0, Math.round(times.totalTime))),
+    },
+    { referer: refererFor(session, ctx), signal: opts.signal },
+  );
+  return scoOk(text);
 }

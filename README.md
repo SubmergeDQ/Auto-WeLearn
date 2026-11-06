@@ -8,10 +8,12 @@ WE Learn 平台的命令行自动化工具（Node.js / TypeScript 重写版）�
 
 ## 当前状态
 
-批次 A（M0–M3）已交付：**登录 / 扫描 / 解析 / dry-run** 全链路可用，所有网络请求只读。
+批次 B（M0–M5）已交付：**登录 / 扫描 / 解析 / 等待保活 / 真实提交** 全链路可用。
 
-真实提交（startsco / setscoinfo / savescoinfo）与心跳保活在批次 B 交付，详见
-[`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F。
+- 已在真实账号上验证单节提交：`startsco → 心跳 ×2 → setscoinfo → savescoinfo` 全部 `ret:0`，
+  提交后平台立即显示该节已完成、CMI 中正确率与答题记录完整。
+- 批次 C（M6 队列硬化 / M7 Playwright 登录）待做，详见
+  [`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F。
 
 ## 环境要求
 
@@ -66,6 +68,15 @@ welearn-cli inspect --course 566 --sco m-1-3-5
 ```bash
 welearn-cli run --course 566 --dry-run --max-lessons 5
 ```
+
+### 5. 真实执行
+
+```bash
+welearn-cli run --course 566 --unit 3 --wait 300-480 --rate 90-100
+```
+
+每节流程：解析题目 → `startsco` → 等待（30–40s 心跳保活）→ `setscoinfo` → `savescoinfo`。
+Ctrl+C 可中断，当前节不会提交半截数据；加 `--resume` 下次跳过已完成小节。
 
 ## 命令参考
 

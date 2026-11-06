@@ -108,6 +108,11 @@ export interface RunConfig {
   resume: boolean;
   statePath: string;
   maxLessons?: number;
+  /**
+   * cmi.total_time 的语义：session 只写本节秒数（Python 老行为），
+   * total 写历史累计 + 本节（SCORM 语义，默认）。
+   */
+  cmiTime: 'session' | 'total';
 }
 
 export interface RunState {

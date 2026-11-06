@@ -16,6 +16,7 @@ export interface RawRunFlags {
   state?: string;
   maxLessons?: string;
   unsafeFast?: boolean;
+  cmiTime?: string;
 }
 
 export function parseRate(raw: string | undefined): RatePlan {
@@ -90,6 +91,7 @@ export function parseRunFlags(flags: RawRunFlags, defaultStatePath: string): Par
     resume: Boolean(flags.resume),
     statePath: flags.state ?? defaultStatePath,
     ...(flags.maxLessons ? { maxLessons: Number(flags.maxLessons) } : {}),
+    ...(flags.cmiTime === 'session' || flags.cmiTime === 'total' ? { cmiTime: flags.cmiTime } : {}),
   });
 
   if (!parsed.success) {

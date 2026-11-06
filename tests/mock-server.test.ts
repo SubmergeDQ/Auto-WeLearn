@@ -131,7 +131,7 @@ describe('dry-run 链路', () => {
     expect(prep.address?.url).toContain('/courseware/main1.html');
 
     const writes = mock.writeActions();
-    expect(writes).toEqual(['scoAddr']);
+    expect(writes).toEqual([]);
     expect(writes).not.toContain('startsco160928');
     expect(writes).not.toContain('setscoinfo');
     expect(writes).not.toContain('savescoinfo160928');

@@ -56,7 +56,7 @@ export async function runCli(argv: string[], opts: { signal: AbortSignal }): Pro
 
   program
     .command('run')
-    .description('按队列执行学习流程（批次 B 起支持真实提交，当前仅 --dry-run）')
+    .description('按队列执行学习流程（等待期自动心跳保活；可用 --dry-run 只预演）')
     .requiredOption('--course <cid>', '课程 ID')
     .option('--unit <n|all>', '只处理指定单元（1-based）', 'all')
     .option('--rate <n|a-b>', '目标正确率，如 93 或 90-100', '90-100')
@@ -69,6 +69,7 @@ export async function runCli(argv: string[], opts: { signal: AbortSignal }): Pro
     .option('--resume', '断点续跑，跳过已完成小节', false)
     .option('--state <path>', '状态文件路径')
     .option('--max-lessons <n>', '本次最多处理节数')
+    .option('--cmi-time <mode>', 'cmi.total_time 语义：session 只写本节 / total 写累计（默认）')
     .option('--unsafe-fast', '允许低于 30s 的等待（仅测试用）', false)
     .action(async (localOpts: Record<string, unknown>, cmd: Command) => {
       exitCode = await runCommand(localOpts as unknown as RunFlags, buildContext(cmd, opts.signal));

@@ -18,8 +18,12 @@ export interface RecordedRequest {
 export interface MockServer {
   baseUrl: string;
   requests: RecordedRequest[];
-  /** 取出所有写操作 action，用于断言 dry-run 零写入 */
+  /** 这些 action 返回 ret=1，用于模拟平台拒绝 */
+  failActions: Set<string>;
+  /** 取出所有 SCO 写操作 action，用于断言 dry-run 零写入 */
   writeActions(): string[];
+  /** 按 action 取出请求体参数列表 */
+  calls(action: string): URLSearchParams[];
   close(): Promise<void>;
 }
 
@@ -51,6 +55,7 @@ function html(res: ServerResponse, body: string): void {
 
 export async function startMockServer(): Promise<MockServer> {
   const requests: RecordedRequest[] = [];
+  const failActions = new Set<string>();
   const fixture = readFileSync(join(process.cwd(), 'fixtures', 'sco-courseware.html'), 'utf8');
 
   const server = createServer(async (req, res) => {
@@ -129,6 +134,7 @@ export async function startMockServer(): Promise<MockServer> {
     if (url.pathname === '/Ajax/SCO.aspx') {
       const params = new URLSearchParams(body);
       const action = params.get('action') ?? '';
+
       if (action === 'scoAddr') {
         json(res, {
           ret: 0,
@@ -138,12 +144,33 @@ export async function startMockServer(): Promise<MockServer> {
         });
         return;
       }
+
+      if (failActions.has(action)) {
+        json(res, { ret: 1, mess: 'rejected' });
+        return;
+      }
+
+      if (action === 'getscoinfo_v7') {
+        // 从未提交过的小节平台返回 -1，用于验证「无历史 CMI」分支
+        if ((params.get('scoid') ?? '').startsWith('sco-fresh')) {
+          json(res, { ret: -1, msg: '学习数据不正确' });
+          return;
+        }
+        json(res, {
+          ret: 0,
+          comment: JSON.stringify({ cmi: { total_time: '120', session_time: '0', completion_status: 'not_attempted' } }),
+        });
+        return;
+      }
+
       json(res, { ret: 0 });
       return;
     }
 
     if (url.pathname === '/courseware/main1.html') {
-      html(res, fixture);
+      // sco-empty* 用来模拟「纯媒体页」：合法页面但没有任何题目
+      const scoid = url.searchParams.keys().next().value ?? '';
+      html(res, String(scoid).startsWith('sco-empty') ? '<html><body><p>media only</p></body></html>' : fixture);
       return;
     }
 
@@ -157,11 +184,17 @@ export async function startMockServer(): Promise<MockServer> {
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     requests,
+    failActions,
     writeActions: () =>
       requests
         .filter((r) => r.pathname === '/Ajax/SCO.aspx')
         .map((r) => new URLSearchParams(r.body).get('action') ?? '')
-        .filter((a) => a.length > 0),
+        .filter((a) => a.length > 0 && a !== 'scoAddr'),
+    calls: (action) =>
+      requests
+        .filter((r) => r.pathname === '/Ajax/SCO.aspx')
+        .map((r) => new URLSearchParams(r.body))
+        .filter((p) => p.get('action') === action),
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));

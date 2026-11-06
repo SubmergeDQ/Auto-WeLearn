@@ -1182,6 +1182,9 @@ JSON 模式输出：
 | 2026-11-06 | 填空答案字段优先级 | §5.2「blank: answer → data-answer → 正文」 | 9 份真实模板统计：result==solution 21 处；result = solution + 中文注释 11 处；solution 用 `/` 分隔多个可接受答案且 result 为其中一段 3 处；result 为空 11 处 | `reconcileBlankAnswer()`：斜杠答案按与 result 命中段取；result 去掉尾部括号注释后与 solution 比对；result 为空则用 solution |
 | 2026-11-06 | 整节口语判定关键词 | §5.2 含 `speaking` | 该课程 32 个小节名为 `Text A：Listening & Speaking`，是听力填空题，按规格词表会被整节跳过（直接丢分）；实际口语任务数为 0 | 词表改为 `口语/pronunciation/read aloud/readaloud/voicerecord/oral practice/spoken english`，去掉裸 `speaking` 与 `oral` |
 | 2026-11-06 | 选择题答案形态 | §5.3 未规定 student_response 取什么 | 选项文本是 `C.明镜所以照形，古事所以知今。` 这种带字母前缀的整行，直接取 text 会写错 | `optionLabel()` 优先取首个 span 的字母前缀；TF 两项时归一为 `tof` |
+| 2026-11-06 | `getscoinfo_v7` 的未初始化回包 | §2.4.4 只说「含"学习数据不正确"要先 startsco 再重试」 | 从未学过的小节返回 `{"ret":-1, "msg":"学习数据不正确"}`（键是 `msg` 而不是别处的 `mess`，且冒号后带空格）；**首次 setscoinfo 之后才存在 cmi** | `getCmi()` 返回 `{ok:false, reason:'uninitialized'}`，视为「无历史」而非错误；`alreadyStarted=true` 时不再补发 startsco（本流程进入前已发过），避免重复注册会话 |
+| 2026-11-06 | 心跳是否被接受（V1） | §5.4 未验证，Python 版在刷题流程里没有心跳 | `startsco` → `keepsco_with_getticket_with_updatecmitime`（30–40s 间隔）→ `setscoinfo` → `savescoinfo` 全链路 `ret:0`；提交后 CMI 里 `session_time`/`total_time`/`interactions` 均落库 | 心跳按 §5.4 实现，默认开启；平台拒绝时降级纯等待 |
+| 2026-11-06 | 提交后 `total_time` 的存储语义 | 不确定服务端是「累加」还是「覆盖」 | 首次提交（totalBefore=0）写入 `total_time=60`，读回仍是 `60`；`score.scaled=100`、`interactions` 6 条完整保留 | 默认 `--cmi-time=total`（累计值）；若后续发现重复累加，可切 `--cmi-time=session` |
 
 ### D. 与本仓库 Python 实现的对应关系
 
@@ -1222,9 +1225,20 @@ JSON 模式输出：
 | M1 会话与登录 | 完成 | Cookie 登录 + 会话缓存；账号密码与浏览器登录顺延至 M7 |
 | M2 扫描 | 完成 | course_info / courseunits / scoLeaves + 过滤 + state store |
 | M3 解析与 dry-run | 完成 | 双解析器 + jsEscape + interactions + inspect + run --dry-run |
-| M4 单节提交 | 待批次 B | startsco / setscoinfo / savescoinfo |
-| M5 等待与保活 | 待批次 B | 心跳 + session_time/total_time |
-| M6 队列/断点/报告 | 待批次 B | --resume / 汇总 / 退出码 |
+| M4 单节提交 | 完成 | startsco / setscoinfo / savescoinfo，请求体由 mock 逐字段断言 |
+| M5 等待与保活 | 完成 | 心跳 + session_time/total_time；真实单节验证通过 |
+| M6 队列/断点/报告 | 待批次 C | --resume / 汇总 / 退出码（基础循环已在 M4 落地） |
 | M7 硬化与交付 | 待批次 C | Playwright 登录 / tsup / README |
+
+### G. 待实测验证项结论（§11）
+
+| 编号 | 结论 | 依据 |
+| -- | -- | -- |
+| V1 | **通过**：`startsco` 之后、`setscoinfo` 之前的心跳被接受 | 真实小节 m-1-2-1，60s 等待产生 2 次心跳，均 `ret:0`，提交后 CMI 时长正确 |
+| V2 | **无法验证**：本课程 283 节中没有 `match` / `order` 题型 | 双解析器对这两型只做原样透传 |
+| V3 | **通过**：`iscomplete` 稳定只有「已完成」「未完成」两种取值 | 283 节全量扫描，取值集合仅此二值 |
+| V4 | 待验证：账号密码 SSO 登录 | M7 交付；当前只支持 Cookie |
+| V5 | **通过**：提交后 `scoLeaves` 立即显示已完成 | 提交前后扫描对比：Unit 2 已完成 31 → 32，待处理 5 → 4 |
+
 
 

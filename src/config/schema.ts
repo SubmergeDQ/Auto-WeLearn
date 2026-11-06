@@ -50,6 +50,7 @@ export const runConfigSchema = z.object({
   resume: z.boolean().default(false),
   statePath: z.string().min(1).default('~/.welearn-cli/state.json'),
   maxLessons: z.number().int().positive().optional(),
+  cmiTime: z.union([z.literal('session'), z.literal('total')]).default('total'),
 });
 
 export const appConfigSchema = z.object({
