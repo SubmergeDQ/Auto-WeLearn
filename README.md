@@ -95,9 +95,28 @@ Ctrl+C 可中断，当前节不会提交半截数据；加 `--resume` 下次跳�
 | `inspect --course <cid> --sco <id>` | 只读解析单节题目与答案 |
 | `run --course <cid> --dry-run` | 预演队列，只解析不提交 |
 
-全局选项：`--cookie`、`--cookie-file`、`--json`、`-v/--verbose`。
+全局选项：`--cookie`、`--cookie-file`、`--config <path>`、`--json`、`-v/--verbose`。
 
 退出码：`0` 成功 / `1` 有失败 / `2` 配置错误 / `3` 登录失效 / `4` 用户中断 / `5` 接口契约变更。
+
+## 打包与分发
+
+```bash
+npm run build                # 生成 dist/index.js（单文件 ESM，约 89KB）
+npm pack                     # 生成 welearn-cli-0.1.0.tgz
+npm i -g ./welearn-cli-0.1.0.tgz   # 全局安装后可直接用 welearn-cli
+```
+
+配置文件（可选）示例，命令行的优先级高于它：
+
+```json
+{
+  "baseUrl": "https://welearn.sflep.com",
+  "timeoutMs": 15000,
+  "retry": { "max": 3, "baseDelayMs": 2000 },
+  "statePath": "~/.welearn-cli/state.json"
+}
+```
 
 ## 工程结构
 

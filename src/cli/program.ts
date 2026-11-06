@@ -22,6 +22,7 @@ export async function runCli(argv: string[], opts: { signal: AbortSignal }): Pro
     .option('--json', '结果以 JSON 输出到 stdout')
     .option('--cookie <string>', 'Cookie 字符串，或 EditThisCookie 导出的 JSON 数组')
     .option('--cookie-file <path>', '从文件读取 Cookie')
+    .option('--config <path>', '配置文件路径（可选，命令行与环境变量优先级更高）')
     .showHelpAfterError('（使用 --help 查看用法）');
 
   let exitCode = 0;
@@ -104,6 +105,7 @@ interface Globals {
   json?: boolean;
   cookie?: string;
   cookieFile?: string;
+  config?: string;
 }
 
 function buildContext(cmd: Command, signal: AbortSignal): CliContext {
@@ -112,7 +114,7 @@ function buildContext(cmd: Command, signal: AbortSignal): CliContext {
     signal,
     json: Boolean(globals.json),
     verbose: Boolean(globals.verbose),
-    config: loadConfig(),
+    config: loadConfig({ filePath: globals.config }),
     sessionSource: { cookie: globals.cookie, cookieFile: globals.cookieFile },
   });
 }
