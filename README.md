@@ -1,184 +1,70 @@
 # Auto-WeLearn
 
-WE Learn 平台的命令行自动化工具（Node.js / TypeScript 重写版）。
+WE Learn 学习助手 —— 桌面（Windows）与安卓（APK）**图形界面**，另附一套命令行版本。
 
 > **免责声明**
 > 本项目仅用于个人学习研究与接口自动化练习。使用前请自行确认你的行为符合所在学校与平台的服务条款，
 > 由此产生的一切后果由使用者承担。项目不包含验证码识别、UA 轮换、代理池、设备指纹伪造等风控规避功能。
 
-## 当前状态
+## 产物
 
-全部里程碑（M0–M7）已交付：**登录 / 扫描 / 解析 / 等待保活 / 真实提交 / 断点续跑 / 报告** 全链路可用。
+| 产物 | 位置 | 说明 |
+| --- | --- | --- |
+| Windows 桌面版 | `release/gui-windows/welearn_app.exe` | 免安装，双击运行（同目录的 dll 与 data 不能删） |
+| 安卓安装包 | `release/welearn-app-release.apk` | 50 MB，含 arm64 / armv7 / x64 |
+| 命令行版（旧） | `release/welearn-cli.exe` | TypeScript 版，功能等价 |
 
-- 已在真实账号上验证：单节提交 `startsco → 心跳 ×2 → setscoinfo → savescoinfo` 全部 `ret:0`，
-  提交后平台立即显示该节已完成，CMI 中正确率与答题记录完整。
-- 账号密码 SSO 登录**未实现**（依赖服务端 PKCE state，易失效），请用 Cookie 或 `--browser`。
-- 进度与实测结论见 [`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F / G。
+## 界面
 
-## 安装与运行
+三栏工作区：左边课程与单元，中间小节队列，右边运行面板与日志；顶部一条状态栏，底部进度与统计。
+移动端收成单列，日志改为底部抽屉。
 
-### 方式 A：直接用 exe（不需要装 Node）
+- 设计说明：[docs/GUI_DESIGN.md](docs/GUI_DESIGN.md)
+- 构建说明（含本机三个坑）：[docs/BUILD_GUI.md](docs/BUILD_GUI.md)
+- 平台接口契约与实测结论：[docs/NODE_CLI_SPEC.md](docs/NODE_CLI_SPEC.md)
 
-把 `release/welearn-cli.exe` 复制到任意目录，在该目录打开 cmd / PowerShell：
+## 怎么用
 
-```bat
-welearn-cli.exe login --cookie "..."
-welearn-cli.exe scan --course 566
-welearn-cli.exe run --course 566 --unit 3 --wait 300-420
-```
+1. 打开 `welearn_app.exe`（或安装 APK）
+2. 点右上角「登录」，把浏览器里复制的 Cookie 粘进去
+3. 自动扫描出单元与小节后，点「开始运行」
+4. 运行中可以在右栏看当前节倒计时、心跳次数和每节日志；随时「停止」，当前节不会提交
 
-单文件 86 MB，内嵌 Node 运行时与全部依赖，不依赖 `node_modules`。
-想在任何目录直接调用，把这个目录加进系统 `PATH` 即可。
+Cookie 只存在本机应用数据目录，不会上传到任何地方。
 
-### 方式 B：npm 包
+## 已实现 / 未实现
 
-```bash
-npm i -g ./welearn-cli-0.1.0.tgz   # 装完直接 welearn-cli
-```
+已实现：
+- Cookie 登录（会话持久化，下次打开免登录）
+- 课程 → 单元 → 小节扫描，区分已完成 / 未完成 / 未解锁
+- 题目解析（填空 / 判断 / 选择 / 匹配 / 排序，两套课件都支持）
+- 等待期 30–40s 心跳保活，长等待不会被判无效
+- 提交失败可单节重试；运行中可随时中断
+- 口语/录音题自动跳过（默认）
 
-### 方式 C：源码运行
+未实现：
+- **账号密码登录**：平台用 PKCE 流程，改版风险高，故不实现；请用 Cookie
+- 断点续跑、失败自动重排（CLI 版有，GUI 版后续补）
+
+## 命令行版（保留）
 
 ```bash
 npm install
-npm run dev -- --help     # 开发模式
-npm run build             # 生成 dist/index.js
+npm run dev -- login --cookie "..."
+npm run dev -- scan --course 566
+npm run dev -- run --course 566 --unit 3 --wait 300-420
 ```
 
-> 要求 Node.js ≥ 22（用到内置 `fetch` / `AbortSignal.any`）。exe 方式无此要求。
+CLI 的接口契约、字段坑位、实测验证结论都沉淀在 [docs/NODE_CLI_SPEC.md](docs/NODE_CLI_SPEC.md) 附录 C/E/G，
+GUI 的 Dart 引擎是照着它移植的。
 
-## 快速开始
-
-### 1. 登录（用浏览器 Cookie）
-
-```bash
-# 方式一：直接粘贴（用单引号包住，避免 shell 解释 $ 和 ;）
-welearn-cli login --cookie 'acw_tc=...; area=dbC; .AspNet.Cookies=...'
-
-# 方式二：从文件读取
-welearn-cli login --cookie-file ./cookies.txt
-
-# 方式三：环境变量
-WELEARN_COOKIE='...' welearn-cli login
-
-# 方式四：用本机 Chrome/Edge 登录（需要 npm i -D playwright-core）
-welearn-cli login --browser
-```
-
-成功后会把会话缓存到 `~/.welearn-cli/session.json`（权限 0600），后续命令无需重复粘贴。
-
-### 2. 扫描课程
-
-```bash
-welearn-cli scan --course 566
-welearn-cli scan --course 566 --json        # 机器可读，含每节 scoid
-```
-
-输出会区分「已完成 / 未完成 / 隐藏（未解锁）」，并给出待处理队列。
-
-### 3. 核对解析结果（只读）
-
-```bash
-welearn-cli inspect --course 566 --sco m-1-3-5
-```
-
-打印该小节解析出的题型与答案，用于确认解析器是否正确。**不会**产生任何写请求。
-
-### 4. 预演全流程（零写入）
-
-```bash
-welearn-cli run --course 566 --dry-run --max-lessons 5
-```
-
-### 5. 真实执行
-
-```bash
-welearn-cli run --course 566 --unit 3 --wait 300-480 --rate 90-100
-```
-
-每节流程：解析题目 → `startsco` → 等待（30–40s 心跳保活）→ `setscoinfo` → `savescoinfo`。
-Ctrl+C 可中断，当前节不会提交半截数据；加 `--resume` 下次跳过已完成小节。
-
-每处理 5 节（或满 10 分钟）会重新拉一次服务端状态：若某节本地记为完成但平台仍显示未完成，
-会自动重入队（每节最多 2 次）。
-
-> `--concurrency 2/3` 可用，但平台按单元顺序解锁，并发没有收益且更容易被判异常，默认保持串行。
-
-## 命令参考
-
-| 命令 | 作用 |
-| --- | --- |
-| `login` | 校验登录态并列出课程 |
-| `scan --course <cid>` | 扫描单元/小节与完成进度 |
-| `inspect --course <cid> --sco <id>` | 只读解析单节题目与答案 |
-| `run --course <cid> --dry-run` | 预演队列，只解析不提交 |
-
-全局选项：`--cookie`、`--cookie-file`、`--config <path>`、`--json`、`-v/--verbose`。
-
-退出码：`0` 成功 / `1` 有失败 / `2` 配置错误 / `3` 登录失效 / `4` 用户中断 / `5` 接口契约变更。
-
-## 打包与分发
-
-```bash
-npm run build                # 生成 dist/index.js（单文件 ESM，约 89KB）
-npm pack                     # 生成 welearn-cli-0.1.0.tgz
-npm i -g ./welearn-cli-0.1.0.tgz   # 全局安装后可直接用 welearn-cli
-
-npm run build:exe            # 生成 release/welearn-cli.exe（内嵌 Node，约 86MB）
-```
-
-exe 走 Node 官方的 SEA（Single Executable Application）：
-先把代码打成单个 CJS 文件（`build/sea/index.cjs`），再生成 SEA blob，
-最后用 `postject` 注入到 `node.exe` 的副本里。产物放在 `release/` 而不是 `dist/`，
-因为 `npm run build` 会清空 `dist/`。
-
-> Windows 上注入时会提示 `The signature seems corrupted!`，这是把 blob 写进已签名的
-> `node.exe` 的正常现象，不影响运行；分发前如需签名，请自行用 `signtool` 重新签。
-
-配置文件（可选）示例，命令行的优先级高于它：
-
-```json
-{
-  "baseUrl": "https://welearn.sflep.com",
-  "timeoutMs": 15000,
-  "retry": { "max": 3, "baseDelayMs": 2000 },
-  "statePath": "~/.welearn-cli/state.json"
-}
-```
-
-## 工程结构
+## 目录
 
 ```
-src/
-├── cli/            命令定义与参数解析
-├── config/         配置 schema 与路径
-├── core/
-│   ├── http/       Session（唯一网络出口）、重定向、重试
-│   ├── api/        平台接口封装
-│   ├── auth/       Cookie 解析、会话缓存
-│   ├── parse/      双解析器（courseware / legacy）、interactions
-│   ├── plan/       扫描与时间计划
-│   ├── run/        单节准备与执行
-│   └── state/      断点续跑状态
-└── logging/        脱敏日志
+app/                Flutter 工程（GUI）
+  lib/core/         引擎：session / api / parser / scorm / runner
+  lib/ui/           工作区界面
+release/            构建产物
+src/                CLI 的 TypeScript 实现
+docs/               设计说明、构建说明、接口契约
 ```
-
-## 测试
-
-```bash
-npm run typecheck
-npm test
-```
-
-测试覆盖：日志脱敏、Cookie 解析、两种课件解析、interactions 生成、jsEscape 边界，
-以及基于本地 mock 平台的端到端契约测试（断言 dry-run 不产生写请求）。
-
-## 已知限制
-
-- `--unit` 只能按平台返回的单元顺序处理，平台是顺序解锁的。
-- `match` / `order` 题型的答案格式未在真实课件中验证，当前原样透传。
-- 账号密码登录（SSO）与浏览器取 Cookie 在 M7 交付，当前只支持 Cookie 登录。
-- 平台改版会导致解析失效，请对照 `docs/NODE_CLI_SPEC.md` 附录 C 排查。
-
-## 文档
-
-- [开发规格与实施计划](docs/NODE_CLI_SPEC.md)（含附录 C 实测契约差异、附录 E 实现决策）

@@ -27,3 +27,14 @@ Thumbs.db
 
 # tsup 处理 TS 配置时生成的临时文件
 *.bundled_*.mjs
+
+# Flutter
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/app/.cxx/
+app/windows/flutter/ephemeral/
+app/**/generated_plugin_registrant.*
+app/**/generated_plugins.cmake
