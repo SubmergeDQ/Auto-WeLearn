@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- release 包必须在此声明；debug/profile 清单里的 INTERNET 不会合并进 release -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="welearn_app"
+        android:label="WeLearn 助手"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
