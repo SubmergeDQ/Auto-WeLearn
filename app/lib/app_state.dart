@@ -199,18 +199,37 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// 退出登录：停掉运行、清空会话与课程数据，并抹掉本地保存的 Cookie。
+  /// 运行设置（等待时长、正确率等）保留，重新登录后不用再调一遍。
   Future<void> logout() async {
+    if (running) {
+      _token?.cancel();
+      _token = null;
+      running = false;
+    }
     _session.clearCookies();
     _cookie = '';
     loggedIn = false;
+    busy = false;
+    lastError = null;
     courses = const [];
-    lessons = const [];
     units = const [];
+    lessons = const [];
     currentCid = null;
     meta = null;
+    selectedScoid = null;
+    selectedUnit = null;
+    currentScoid = null;
+    currentElapsed = 0;
+    currentWait = 0;
+    currentHeartbeats = 0;
     statuses.clear();
     results.clear();
+    filter = 'all';
+    query = '';
+    addLog('info', '已退出登录，本地保存的 Cookie 已清除');
     notifyListeners();
+    await _persist('');
   }
 
   // ── 课程与扫描 ───────────────────────────────────────

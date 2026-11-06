@@ -205,7 +205,9 @@ class LogLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        // 时间、级别、正文三种字号不同，按基线对齐才不会上下错开
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
           SizedBox(width: 54, child: Text(time, style: monoStyle(size: 10.5, color: Tokens.textTertiary))),
           SizedBox(
@@ -218,36 +220,6 @@ class LogLine extends StatelessWidget {
               style: TextStyle(fontSize: 11.5, height: 1.45, color: level == 'error' ? Tokens.danger : Tokens.textSecondary),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 顶栏状态胶囊
-class TopPill extends StatelessWidget {
-  const TopPill({super.key, required this.text, required this.color, this.icon});
-  final String text;
-  final Color color;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 5),
-          ],
-          Text(text, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w500)),
         ],
       ),
     );

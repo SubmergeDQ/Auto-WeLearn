@@ -27,6 +27,10 @@ class Tokens {
   static const radiusControl = 6.0;
   static const radiusCard = 10.0;
 
+  /// 顶栏/工具栏内所有控件（状态胶囊、图标按钮、按钮）的统一高度。
+  /// 三者高度不一致时，即使 Row 居中也会显得参差。
+  static const controlHeight = 32.0;
+
   static const gap4 = 4.0;
   static const gap8 = 8.0;
   static const gap12 = 12.0;
@@ -144,3 +148,19 @@ ThemeData buildTheme() {
     ),
   );
 }
+
+/// 工具栏小型填充按钮：固定 32 高，与图标按钮、状态胶囊对齐。
+ButtonStyle toolbarFilled() => FilledButton.styleFrom(
+      minimumSize: const Size(0, Tokens.controlHeight),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+    );
+
+/// 工具栏小型描边按钮，与 [toolbarFilled] 同高。
+ButtonStyle toolbarOutlined() => OutlinedButton.styleFrom(
+      minimumSize: const Size(0, Tokens.controlHeight),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+    );

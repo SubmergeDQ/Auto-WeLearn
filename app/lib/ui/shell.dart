@@ -88,38 +88,50 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: Tokens.controlHeight,
+            height: Tokens.controlHeight,
             decoration: BoxDecoration(
               color: Tokens.accentSoft,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.school_outlined, size: 19, color: Tokens.accent),
+            child: const Icon(Icons.school_outlined, size: 18, color: Tokens.accent),
           ),
           const SizedBox(width: 10),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('WeLearn 助手',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.2)),
-              const SizedBox(height: 2),
-              Text(
-                course == null ? '尚未选择课程' : '${course.name} · ${course.percent}%',
-                style: const TextStyle(fontSize: 11.5, color: Tokens.textTertiary, height: 1.2),
-              ),
-            ],
+          // Expanded 而不是 Spacer：课程名过长时省略，避免把右侧按钮挤出屏幕
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'WeLearn 助手',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.2),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  course == null ? '尚未选择课程' : '${course.name} · ${course.percent}%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11.5, color: Tokens.textTertiary, height: 1.2),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 16),
           if (!state.loggedIn)
             FilledButton(
+              key: const Key('toolbar-run'),
+              style: toolbarFilled(),
               onPressed: state.busy ? null : () => _showLoginDialog(context),
               child: Text(state.busy ? '连接中…' : '登录'),
             )
           else ...[
-            const TopPill(text: '已登录', color: Tokens.success, icon: Icons.check_circle_outline),
+            _AccountChip(state: state),
             const SizedBox(width: 8),
             _IconAction(
+              key: const Key('toolbar-settings'),
               icon: Icons.tune,
               tooltip: '运行设置',
               onTap: () => _showSettings(context),
@@ -127,14 +139,18 @@ class _TopBar extends StatelessWidget {
             const SizedBox(width: 8),
             if (state.running)
               OutlinedButton.icon(
+                key: const Key('toolbar-run'),
+                style: toolbarOutlined(),
                 onPressed: state.stopRun,
                 icon: const Icon(Icons.stop_rounded, size: 16, color: Tokens.danger),
                 label: const Text('停止', style: TextStyle(color: Tokens.danger)),
               )
             else
               FilledButton.icon(
+                key: const Key('toolbar-run'),
+                style: toolbarFilled(),
                 onPressed: state.candidates.isEmpty ? null : state.startRun,
-                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                icon: const Icon(Icons.play_arrow_rounded, size: 17),
                 label: Text('开始运行${state.candidates.isEmpty ? '' : ' · ${state.candidates.length} 节'}'),
               ),
           ],
@@ -144,8 +160,127 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+/// 账号入口：点开可以切换课程、重新扫描、退出登录。
+/// 顶栏其余控件都是 32 高，这里也钉死 32，避免胶囊比按钮矮一截。
+class _AccountChip extends StatelessWidget {
+  const _AccountChip({required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: const Key('account-chip'),
+      tooltip: '账号',
+      offset: const Offset(0, Tokens.controlHeight + 6),
+      color: Tokens.surface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        side: const BorderSide(color: Tokens.border),
+      ),
+      onSelected: (value) async {
+        if (value == '__logout__') {
+          if (await _confirmLogout(context)) await state.logout();
+          return;
+        }
+        if (value == '__rescan__') {
+          final cid = state.currentCid;
+          if (cid != null) await state.loadCourse(cid);
+          return;
+        }
+        if (value.startsWith('course:')) {
+          await state.loadCourse(value.substring('course:'.length));
+        }
+      },
+      itemBuilder: (context) => [
+        if (state.courses.length > 1) ...[
+          const PopupMenuItem<String>(
+            enabled: false,
+            height: 30,
+            child: Text('切换课程', style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+          ),
+          for (final c in state.courses)
+            PopupMenuItem<String>(
+              value: 'course:${c.cid}',
+              height: 36,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    child: c.cid == state.currentCid
+                        ? const Icon(Icons.check, size: 14, color: Tokens.accent)
+                        : null,
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 230),
+                    child: Text(
+                      '${c.name} · ${c.percent}%',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: c.cid == state.currentCid ? Tokens.textPrimary : Tokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const PopupMenuDivider(),
+        ],
+        PopupMenuItem<String>(
+          value: '__rescan__',
+          height: 36,
+          enabled: state.currentCid != null,
+          child: const Row(
+            children: [
+              Icon(Icons.refresh, size: 15, color: Tokens.textSecondary),
+              SizedBox(width: 8),
+              Text('重新扫描', style: TextStyle(fontSize: 12.5)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: '__logout__',
+          height: 36,
+          child: Row(
+            children: [
+              Icon(Icons.logout_rounded, size: 15, color: Tokens.danger),
+              SizedBox(width: 8),
+              Text('退出登录', style: TextStyle(fontSize: 12.5, color: Tokens.danger)),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        height: Tokens.controlHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Tokens.success.withValues(alpha: 0.09),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Tokens.success.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_outline, size: 13, color: Tokens.success),
+            const SizedBox(width: 5),
+            const Text(
+              '已登录',
+              style: TextStyle(fontSize: 11.5, color: Tokens.success, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(width: 1),
+            Icon(Icons.expand_more_rounded, size: 15, color: Tokens.success.withValues(alpha: 0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _IconAction extends StatelessWidget {
-  const _IconAction({required this.icon, required this.tooltip, required this.onTap});
+  const _IconAction({super.key, required this.icon, required this.tooltip, required this.onTap});
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -158,13 +293,13 @@ class _IconAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(Tokens.radiusControl),
         child: Container(
-          width: 34,
-          height: 34,
+          width: Tokens.controlHeight,
+          height: Tokens.controlHeight,
           decoration: BoxDecoration(
             border: Border.all(color: Tokens.border),
             borderRadius: BorderRadius.circular(Tokens.radiusControl),
           ),
-          child: Icon(icon, size: 17, color: Tokens.textSecondary),
+          child: Icon(icon, size: 16, color: Tokens.textSecondary),
         ),
       ),
     );
@@ -267,8 +402,10 @@ class _Sidebar extends StatelessWidget {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            // 与上方课程卡片的 16px 左右边距保持一致，否则按钮会比卡片宽出一圈
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: OutlinedButton.icon(
+              style: toolbarOutlined(),
               onPressed: state.currentCid == null ? null : () => state.loadCourse(state.currentCid!),
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('重新扫描'),
@@ -309,15 +446,19 @@ class _UnitRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
             child: Row(
               children: [
-                Text(
-                  unit.unitName,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected ? Tokens.accent : Tokens.textPrimary,
+                Expanded(
+                  child: Text(
+                    unit.unitName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? Tokens.accent : Tokens.textPrimary,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text('$done/$total',
                     style: monoStyle(
                         size: 10.5,
@@ -397,14 +538,20 @@ class _QueuePane extends StatelessWidget {
               color: Tokens.accentSoft.withValues(alpha: 0.5),
               child: Row(
                 children: [
-                  Text(
-                    '仅显示 ${state.units.firstWhere((u) => u.index == state.selectedUnit, orElse: () => state.units.first).unitName}',
-                    style: const TextStyle(fontSize: 11.5, color: Tokens.accent),
+                  Expanded(
+                    child: Text(
+                      '仅显示 ${state.units.firstWhere((u) => u.index == state.selectedUnit, orElse: () => state.units.first).unitName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: Tokens.accent),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () => state.setUnit(null),
-                    child: const Text('清除', style: TextStyle(fontSize: 11.5, decoration: TextDecoration.underline, color: Tokens.accent)),
+                    child: const Text('清除',
+                        style: TextStyle(
+                            fontSize: 11.5, decoration: TextDecoration.underline, color: Tokens.accent)),
                   ),
                 ],
               ),
@@ -456,13 +603,19 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(Tokens.radiusControl),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        // 与右侧搜索框同高，filter 行才不会一边高一边矮
+        height: Tokens.controlHeight,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: active ? Tokens.textPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(Tokens.radiusControl),
           border: Border.all(color: active ? Tokens.textPrimary : Tokens.border),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
               label,
@@ -552,8 +705,9 @@ class _RunPaneState extends State<_RunPane> {
             ),
           ),
           const Divider(height: 1),
+          // 卡片与日志的左边缘统一到 16，和「运行」「日志」两个标题对齐
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: _CurrentCard(state: state, lesson: focus),
           ),
           const Divider(height: 1),
@@ -572,7 +726,7 @@ class _RunPaneState extends State<_RunPane> {
                 ? _EmptyHint(icon: Icons.terminal, text: '运行后在这里看到每节进度')
                 : ListView.builder(
                     controller: _scroll,
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     itemCount: state.logs.length,
                     itemBuilder: (context, i) {
                       final log = state.logs[i];
@@ -831,6 +985,28 @@ class _MobileShell extends StatelessWidget {
           ],
         ),
         actions: [
+          if (state.loggedIn)
+            PopupMenuButton<String>(
+              key: const Key('mobile-account'),
+              tooltip: '账号',
+              icon: const Icon(Icons.account_circle_outlined, size: 20),
+              onSelected: (v) async {
+                if (v != 'logout') return;
+                if (await _confirmLogout(context)) await state.logout();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout_rounded, size: 16, color: Tokens.danger),
+                      SizedBox(width: 8),
+                      Text('退出登录', style: TextStyle(color: Tokens.danger)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           IconButton(
             onPressed: () => _showLogsSheet(context),
             icon: const Icon(Icons.receipt_long_outlined, size: 20),
@@ -927,59 +1103,97 @@ class _MobileShell extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════
 // 对话框与设置
 // ═══════════════════════════════════════════════════════════
+/// 退出登录前的确认。Cookie 需要手动重新粘贴，误点一次成本不低。
+Future<bool> _confirmLogout(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: Tokens.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
+      title: const Text('退出登录', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      content: const SizedBox(
+        width: 360,
+        child: Text(
+          '退出后会清除本机保存的 Cookie 与当前课程数据，下次需要重新粘贴 Cookie 才能登录。运行设置会保留。',
+          style: TextStyle(fontSize: 12.5, color: Tokens.textSecondary, height: 1.5),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('退出登录'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
 Future<void> _showLoginDialog(BuildContext context) async {
   final state = AppScope.of(context);
   final controller = TextEditingController();
 
   await showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: Tokens.surface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-      title: const Text('登录 WE Learn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-      content: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
-              style: TextStyle(fontSize: 12, color: Tokens.textSecondary, height: 1.5),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              maxLines: 5,
-              style: const TextStyle(fontSize: 12, height: 1.4),
-              decoration: const InputDecoration(
-                hintText: 'acw_tc=...; area=dbC; .AspNet.Cookies=...',
-                hintStyle: TextStyle(fontSize: 11.5, color: Tokens.textTertiary),
+    builder: (context) => StatefulBuilder(
+      builder: (context, setLocal) => AlertDialog(
+        backgroundColor: Tokens.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
+        title: const Text('登录 WE Learn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
+                style: TextStyle(fontSize: 12, color: Tokens.textSecondary, height: 1.5),
               ),
-            ),
-            if (state.lastError != null) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 5,
+                style: const TextStyle(fontSize: 12, height: 1.4),
+                decoration: const InputDecoration(
+                  hintText: 'acw_tc=...; area=dbC; .AspNet.Cookies=...',
+                  hintStyle: TextStyle(fontSize: 11.5, color: Tokens.textTertiary),
+                ),
+              ),
+              if (state.lastError != null) ...[
+                const SizedBox(height: 10),
+                Text(state.lastError!, style: const TextStyle(fontSize: 11.5, color: Tokens.danger)),
+              ],
               const SizedBox(height: 10),
-              Text(state.lastError!, style: const TextStyle(fontSize: 11.5, color: Tokens.danger)),
+              const Text(
+                '账号密码登录暂不支持（平台使用 PKCE 流程，改版风险高）。',
+                style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+              ),
             ],
-            const SizedBox(height: 10),
-            const Text(
-              '账号密码登录暂不支持（平台使用 PKCE 流程，改版风险高）。',
-              style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
-            ),
-          ],
+          ),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          FilledButton(
+            onPressed: state.busy
+                ? null
+                : () async {
+                    final ok = await state.login(controller.text);
+                    if (!context.mounted) return;
+                    if (ok) {
+                      Navigator.pop(context);
+                    } else {
+                      setLocal(() {});
+                    }
+                  },
+            child: Text(state.busy ? '连接中…' : '登录'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-        FilledButton(
-          onPressed: () async {
-            final ok = await state.login(controller.text);
-            if (ok && context.mounted) Navigator.pop(context);
-          },
-          child: Text(state.busy ? '连接中…' : '登录'),
-        ),
-      ],
     ),
   );
 }
