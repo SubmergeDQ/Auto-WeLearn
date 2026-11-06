@@ -15,19 +15,36 @@ WE Learn 平台的命令行自动化工具（Node.js / TypeScript 重写版）�
 - 账号密码 SSO 登录**未实现**（依赖服务端 PKCE state，易失效），请用 Cookie 或 `--browser`。
 - 进度与实测结论见 [`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F / G。
 
-## 环境要求
+## 安装与运行
 
-- Node.js ≥ 22（使用内置 `fetch` / `AbortSignal.any`）
-- Windows / macOS / Linux
+### 方式 A：直接用 exe（不需要装 Node）
 
-## 安装
+把 `release/welearn-cli.exe` 复制到任意目录，在该目录打开 cmd / PowerShell：
+
+```bat
+welearn-cli.exe login --cookie "..."
+welearn-cli.exe scan --course 566
+welearn-cli.exe run --course 566 --unit 3 --wait 300-420
+```
+
+单文件 86 MB，内嵌 Node 运行时与全部依赖，不依赖 `node_modules`。
+想在任何目录直接调用，把这个目录加进系统 `PATH` 即可。
+
+### 方式 B：npm 包
+
+```bash
+npm i -g ./welearn-cli-0.1.0.tgz   # 装完直接 welearn-cli
+```
+
+### 方式 C：源码运行
 
 ```bash
 npm install
-npm run build      # 产物在 dist/，可直接 node dist/index.js 运行
-# 或开发模式
-npm run dev -- --help
+npm run dev -- --help     # 开发模式
+npm run build             # 生成 dist/index.js
 ```
+
+> 要求 Node.js ≥ 22（用到内置 `fetch` / `AbortSignal.any`）。exe 方式无此要求。
 
 ## 快速开始
 
@@ -105,7 +122,17 @@ Ctrl+C 可中断，当前节不会提交半截数据；加 `--resume` 下次跳�
 npm run build                # 生成 dist/index.js（单文件 ESM，约 89KB）
 npm pack                     # 生成 welearn-cli-0.1.0.tgz
 npm i -g ./welearn-cli-0.1.0.tgz   # 全局安装后可直接用 welearn-cli
+
+npm run build:exe            # 生成 release/welearn-cli.exe（内嵌 Node，约 86MB）
 ```
+
+exe 走 Node 官方的 SEA（Single Executable Application）：
+先把代码打成单个 CJS 文件（`build/sea/index.cjs`），再生成 SEA blob，
+最后用 `postject` 注入到 `node.exe` 的副本里。产物放在 `release/` 而不是 `dist/`，
+因为 `npm run build` 会清空 `dist/`。
+
+> Windows 上注入时会提示 `The signature seems corrupted!`，这是把 blob 写进已签名的
+> `node.exe` 的正常现象，不影响运行；分发前如需签名，请自行用 `signtool` 重新签。
 
 配置文件（可选）示例，命令行的优先级高于它：
 

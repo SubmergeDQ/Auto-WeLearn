@@ -22,7 +22,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:exe": "node scripts/build-exe.mjs"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "playwright-core": "^1.65.0",
+    "postject": "^1.0.0-alpha.6",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
