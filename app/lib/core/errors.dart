@@ -24,7 +24,9 @@ enum AppErrorCode {
   final String code;
 
   bool get retryable =>
-      this == AppErrorCode.network || this == AppErrorCode.timeout || this == AppErrorCode.server;
+      this == AppErrorCode.network ||
+      this == AppErrorCode.timeout ||
+      this == AppErrorCode.server;
 }
 
 class AppException implements Exception {
@@ -42,13 +44,20 @@ class AppException implements Exception {
 }
 
 /// 把任意异常归一化，便于统一判定
-AppException toAppException(Object error, [AppErrorCode fallback = AppErrorCode.unknown]) {
+AppException toAppException(
+  Object error, [
+  AppErrorCode fallback = AppErrorCode.unknown,
+]) {
   if (error is AppException) return error;
   if (error is TimeoutException) {
     return AppException(AppErrorCode.timeout, '请求超时（超过设定的单请求时长）');
   }
   if (error is SocketException) {
-    return AppException(AppErrorCode.network, '网络连接失败：${error.message}', cause: error);
+    return AppException(
+      AppErrorCode.network,
+      '网络连接失败：${error.message}',
+      cause: error,
+    );
   }
   return AppException(fallback, error.toString(), cause: error);
 }

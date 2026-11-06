@@ -17,8 +17,11 @@ class CancelToken {
   }
 }
 
-Future<void> sleepInterruptible(Duration total, CancelToken token,
-    {Duration step = const Duration(milliseconds: 200)}) async {
+Future<void> sleepInterruptible(
+  Duration total,
+  CancelToken token, {
+  Duration step = const Duration(milliseconds: 200),
+}) async {
   final end = DateTime.now().add(total);
   while (true) {
     token.throwIfCancelled();
@@ -36,7 +39,8 @@ int randomInt(int min, int max, Random rng) {
 }
 
 int pickWait(int min, int max, Random rng) => randomInt(min, max, rng);
-int pickCrate(int min, int max, Random rng) => randomInt(min, max, rng).clamp(0, 100);
+int pickCrate(int min, int max, Random rng) =>
+    randomInt(min, max, rng).clamp(0, 100);
 double pickInterval(int min, int max, Random rng) =>
     max <= min ? min.toDouble() : min + rng.nextDouble() * (max - min);
 
@@ -82,10 +86,9 @@ Future<ScannedCourse> scanCourse(
   }
 
   final candidates = lessons
-      .where((l) =>
-          l.visible &&
-          !l.complete &&
-          !(skipOralLesson && isOralLesson(l)))
+      .where(
+        (l) => l.visible && !l.complete && !(skipOralLesson && isOralLesson(l)),
+      )
       .toList();
 
   return ScannedCourse(
@@ -145,8 +148,12 @@ Future<KeepaliveOutcome> runKeepalive({
 
   Future<void> beat() async {
     try {
-      final ok = await api.keepSco(meta, scoid,
-          sessionTime: elapsed, totalTime: totalBefore + elapsed);
+      final ok = await api.keepSco(
+        meta,
+        scoid,
+        sessionTime: elapsed,
+        totalTime: totalBefore + elapsed,
+      );
       if (ok) {
         heartbeats++;
         onBeat?.call(true, elapsed);
@@ -162,8 +169,11 @@ Future<KeepaliveOutcome> runKeepalive({
 
   while (elapsed < targetSec) {
     token.throwIfCancelled();
-    await sleepInterruptible(const Duration(seconds: 1), token,
-        step: const Duration(milliseconds: 250));
+    await sleepInterruptible(
+      const Duration(seconds: 1),
+      token,
+      step: const Duration(milliseconds: 250),
+    );
     elapsed++;
     onTick?.call(elapsed);
 
@@ -175,7 +185,11 @@ Future<KeepaliveOutcome> runKeepalive({
   if (targetSec > 0) await beat();
   onTick?.call(elapsed);
 
-  return KeepaliveOutcome(elapsed: elapsed, heartbeats: heartbeats, supported: supported);
+  return KeepaliveOutcome(
+    elapsed: elapsed,
+    heartbeats: heartbeats,
+    supported: supported,
+  );
 }
 
 /// 单节状态机：解析 → startsco → 等待保活 → setscoinfo → savescoinfo
@@ -203,14 +217,20 @@ Future<LessonResult> runLesson({
     );
     final html = address == null ? null : await api.fetchTemplate(address.url);
     final parsed = html == null
-        ? ParseResult(questions: const [], oral: 0, strategy: 'none', warnings: const [])
+        ? ParseResult(
+            questions: const [],
+            oral: 0,
+            strategy: 'none',
+            warnings: const [],
+          )
         : parseSco(html);
     final bundle = generateInteractions(parsed.questions, crate, random: rng);
 
     onLog?.call(
-        'info',
-        '解析 ${parsed.questions.length} 题（跳过 ${parsed.oral} 道口语题）  '
-        '等待 ${(waitSec ~/ 60).toString().padLeft(2, '0')}:${(waitSec % 60).toString().padLeft(2, '0')}');
+      'info',
+      '解析 ${parsed.questions.length} 题（跳过 ${parsed.oral} 道口语题）  '
+          '等待 ${(waitSec ~/ 60).toString().padLeft(2, '0')}:${(waitSec % 60).toString().padLeft(2, '0')}',
+    );
 
     if (!await api.startSco(meta, lesson.scoid)) {
       throw AppException(AppErrorCode.platformRejected, 'startsco 未被平台接受');
@@ -247,7 +267,9 @@ Future<LessonResult> runLesson({
     heartbeats = ka.heartbeats;
 
     final sessionTime = ka.elapsed;
-    final totalTime = settings.cmiTime == 'session' ? sessionTime : totalBefore + sessionTime;
+    final totalTime = settings.cmiTime == 'session'
+        ? sessionTime
+        : totalBefore + sessionTime;
     final data = buildScoData(
       interactions: bundle.interactions,
       crate: crate,
@@ -280,7 +302,9 @@ Future<LessonResult> runLesson({
         oral: parsed.oral,
         answered: bundle.interactions.length,
       ),
-      errorCode: status == LessonStatus.failed ? AppErrorCode.platformRejected.code : null,
+      errorCode: status == LessonStatus.failed
+          ? AppErrorCode.platformRejected.code
+          : null,
     );
   } on AppException catch (e) {
     if (e.isInterrupted) {

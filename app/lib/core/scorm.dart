@@ -10,7 +10,8 @@ String jsEscape(String input) {
   final buffer = StringBuffer();
   for (final code in input.codeUnits) {
     final ch = String.fromCharCode(code);
-    final isAlnum = (code >= 0x30 && code <= 0x39) ||
+    final isAlnum =
+        (code >= 0x30 && code <= 0x39) ||
         (code >= 0x41 && code <= 0x5A) ||
         (code >= 0x61 && code <= 0x7A);
     if (isAlnum || safe.contains(ch)) {
@@ -46,13 +47,15 @@ InteractionBundle generateInteractions(
     final response = correct ? q.answer : _wrongAnswer(q, i);
     final result = correct ? 'correct' : 'wrong';
 
-    interactions.add(Interaction(
-      id: 'interaction_$i',
-      type: q.type,
-      studentResponse: response,
-      result: result,
-      correctResponses: correct ? [q.answer] : null,
-    ));
+    interactions.add(
+      Interaction(
+        id: 'interaction_$i',
+        type: q.type,
+        studentResponse: response,
+        result: result,
+        correctResponses: correct ? [q.answer] : null,
+      ),
+    );
     parts.add('$i[]false[]false[]${jsEscape(response)}[]$result');
   }
 

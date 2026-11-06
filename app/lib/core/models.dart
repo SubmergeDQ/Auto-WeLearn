@@ -5,12 +5,12 @@ enum QuestionType { blank, tof, choice, match, order }
 
 extension QuestionTypeName on QuestionType {
   String get label => switch (this) {
-        QuestionType.blank => '填空',
-        QuestionType.tof => '判断',
-        QuestionType.choice => '选择',
-        QuestionType.match => '匹配',
-        QuestionType.order => '排序',
-      };
+    QuestionType.blank => '填空',
+    QuestionType.tof => '判断',
+    QuestionType.choice => '选择',
+    QuestionType.match => '匹配',
+    QuestionType.order => '排序',
+  };
 
   String get wire => name;
 }
@@ -54,14 +54,14 @@ class Lesson {
   final String crateLabel;
 
   Lesson copyWith({bool? complete}) => Lesson(
-        unitIndex: unitIndex,
-        scoid: scoid,
-        location: location,
-        visible: visible,
-        complete: complete ?? this.complete,
-        learnTime: learnTime,
-        crateLabel: crateLabel,
-      );
+    unitIndex: unitIndex,
+    scoid: scoid,
+    location: location,
+    visible: visible,
+    complete: complete ?? this.complete,
+    learnTime: learnTime,
+    crateLabel: crateLabel,
+  );
 }
 
 class Question {
@@ -86,28 +86,38 @@ class Interaction {
   final List<String>? correctResponses;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type.wire,
-        'student_response': studentResponse,
-        'result': result,
-        'weighting': '1',
-        if (correctResponses != null)
-          'correct_responses': correctResponses!.map((p) => {'pattern': p}).toList(),
-      };
+    'id': id,
+    'type': type.wire,
+    'student_response': studentResponse,
+    'result': result,
+    'weighting': '1',
+    if (correctResponses != null)
+      'correct_responses': correctResponses!
+          .map((p) => {'pattern': p})
+          .toList(),
+  };
 }
 
-enum LessonStatus { pending, running, done, partial, failed, skipped, interrupted }
+enum LessonStatus {
+  pending,
+  running,
+  done,
+  partial,
+  failed,
+  skipped,
+  interrupted,
+}
 
 extension LessonStatusName on LessonStatus {
   String get label => switch (this) {
-        LessonStatus.pending => '待处理',
-        LessonStatus.running => '进行中',
-        LessonStatus.done => '已完成',
-        LessonStatus.partial => '部分成功',
-        LessonStatus.failed => '失败',
-        LessonStatus.skipped => '已跳过',
-        LessonStatus.interrupted => '已中断',
-      };
+    LessonStatus.pending => '待处理',
+    LessonStatus.running => '进行中',
+    LessonStatus.done => '已完成',
+    LessonStatus.partial => '部分成功',
+    LessonStatus.failed => '失败',
+    LessonStatus.skipped => '已跳过',
+    LessonStatus.interrupted => '已中断',
+  };
 
   bool get isFinal =>
       this == LessonStatus.done ||
@@ -117,7 +127,11 @@ extension LessonStatusName on LessonStatus {
 }
 
 class LessonStat {
-  const LessonStat({required this.questions, required this.oral, required this.answered});
+  const LessonStat({
+    required this.questions,
+    required this.oral,
+    required this.answered,
+  });
   final int questions;
   final int oral;
   final int answered;
@@ -161,7 +175,11 @@ class ScannedCourse {
 }
 
 class CourseMeta {
-  const CourseMeta({required this.cid, required this.uid, required this.classid});
+  const CourseMeta({
+    required this.cid,
+    required this.uid,
+    required this.classid,
+  });
   final String cid;
   final String uid;
   final String classid;
@@ -198,37 +216,36 @@ class RunSettings {
     int? intervalMax,
     bool? skipOralLesson,
     String? cmiTime,
-  }) =>
-      RunSettings(
-        waitMin: waitMin ?? this.waitMin,
-        waitMax: waitMax ?? this.waitMax,
-        rateMin: rateMin ?? this.rateMin,
-        rateMax: rateMax ?? this.rateMax,
-        intervalMin: intervalMin ?? this.intervalMin,
-        intervalMax: intervalMax ?? this.intervalMax,
-        skipOralLesson: skipOralLesson ?? this.skipOralLesson,
-        cmiTime: cmiTime ?? this.cmiTime,
-      );
+  }) => RunSettings(
+    waitMin: waitMin ?? this.waitMin,
+    waitMax: waitMax ?? this.waitMax,
+    rateMin: rateMin ?? this.rateMin,
+    rateMax: rateMax ?? this.rateMax,
+    intervalMin: intervalMin ?? this.intervalMin,
+    intervalMax: intervalMax ?? this.intervalMax,
+    skipOralLesson: skipOralLesson ?? this.skipOralLesson,
+    cmiTime: cmiTime ?? this.cmiTime,
+  );
 
   Map<String, dynamic> toJson() => {
-        'waitMin': waitMin,
-        'waitMax': waitMax,
-        'rateMin': rateMin,
-        'rateMax': rateMax,
-        'intervalMin': intervalMin,
-        'intervalMax': intervalMax,
-        'skipOralLesson': skipOralLesson,
-        'cmiTime': cmiTime,
-      };
+    'waitMin': waitMin,
+    'waitMax': waitMax,
+    'rateMin': rateMin,
+    'rateMax': rateMax,
+    'intervalMin': intervalMin,
+    'intervalMax': intervalMax,
+    'skipOralLesson': skipOralLesson,
+    'cmiTime': cmiTime,
+  };
 
   static RunSettings fromJson(Map<String, dynamic> json) => RunSettings(
-        waitMin: (json['waitMin'] as num?)?.toInt() ?? 300,
-        waitMax: (json['waitMax'] as num?)?.toInt() ?? 480,
-        rateMin: (json['rateMin'] as num?)?.toInt() ?? 90,
-        rateMax: (json['rateMax'] as num?)?.toInt() ?? 100,
-        intervalMin: (json['intervalMin'] as num?)?.toInt() ?? 3,
-        intervalMax: (json['intervalMax'] as num?)?.toInt() ?? 8,
-        skipOralLesson: json['skipOralLesson'] as bool? ?? true,
-        cmiTime: json['cmiTime'] as String? ?? 'total',
-      );
+    waitMin: (json['waitMin'] as num?)?.toInt() ?? 300,
+    waitMax: (json['waitMax'] as num?)?.toInt() ?? 480,
+    rateMin: (json['rateMin'] as num?)?.toInt() ?? 90,
+    rateMax: (json['rateMax'] as num?)?.toInt() ?? 100,
+    intervalMin: (json['intervalMin'] as num?)?.toInt() ?? 3,
+    intervalMax: (json['intervalMax'] as num?)?.toInt() ?? 8,
+    skipOralLesson: json['skipOralLesson'] as bool? ?? true,
+    cmiTime: json['cmiTime'] as String? ?? 'total',
+  );
 }

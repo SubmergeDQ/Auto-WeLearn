@@ -74,7 +74,15 @@ class Session {
     final maxHops = followRedirects ? 10 : 0;
 
     for (var hop = 0; hop <= maxHops; hop++) {
-      final response = await _send(uri, currentMethod, body, referer, withOrigin, accept, requestTimeout);
+      final response = await _send(
+        uri,
+        currentMethod,
+        body,
+        referer,
+        withOrigin,
+        accept,
+        requestTimeout,
+      );
 
       if (response.isRedirect) {
         final location = response.headers.value(HttpHeaders.locationHeader);
@@ -83,12 +91,16 @@ class Session {
         }
         await response.drain<void>().catchError((_) {});
         if (location == null) {
-          throw AppException(AppErrorCode.contractChanged, '${response.statusCode} 重定向缺少 Location');
+          throw AppException(
+            AppErrorCode.contractChanged,
+            '${response.statusCode} 重定向缺少 Location',
+          );
         }
         final next = uri.resolve(location);
         redirects.add(next.toString());
         // 浏览器语义：302/303 之后 POST 降级为 GET
-        if (currentMethod == 'POST' && (response.statusCode == 302 || response.statusCode == 303)) {
+        if (currentMethod == 'POST' &&
+            (response.statusCode == 302 || response.statusCode == 303)) {
           currentMethod = 'GET';
           body = null;
         }
@@ -102,8 +114,9 @@ class Session {
           .timeout(timeout);
 
       if (response.statusCode >= 400) {
-        final code =
-            response.statusCode >= 500 ? AppErrorCode.server : AppErrorCode.client;
+        final code = response.statusCode >= 500
+            ? AppErrorCode.server
+            : AppErrorCode.client;
         throw AppException(
           code,
           'HTTP ${response.statusCode}：${text.replaceAll(RegExp(r'\s+'), ' ').substring(0, text.length.clamp(0, 120))}',
@@ -132,21 +145,34 @@ class Session {
     Duration? requestTimeout,
   ) async {
     try {
-      final request = await _client.openUrl(method, uri).timeout(requestTimeout ?? timeout);
+      final request = await _client
+          .openUrl(method, uri)
+          .timeout(requestTimeout ?? timeout);
       request.followRedirects = false;
       request.headers.set(HttpHeaders.userAgentHeader, userAgent);
       request.headers.set(
         HttpHeaders.acceptHeader,
-        accept ?? 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        accept ??
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       );
-      request.headers.set(HttpHeaders.acceptLanguageHeader, 'zh-CN,zh;q=0.9,en;q=0.8');
-      if (referer != null) request.headers.set(HttpHeaders.refererHeader, referer);
+      request.headers.set(
+        HttpHeaders.acceptLanguageHeader,
+        'zh-CN,zh;q=0.9,en;q=0.8',
+      );
+      if (referer != null) {
+        request.headers.set(HttpHeaders.refererHeader, referer);
+      }
       if (withOrigin) request.headers.set('Origin', baseUrl);
       final cookie = _cookieHeader(uri);
-      if (cookie.isNotEmpty) request.headers.set(HttpHeaders.cookieHeader, cookie);
+      if (cookie.isNotEmpty) {
+        request.headers.set(HttpHeaders.cookieHeader, cookie);
+      }
 
       if (body != null) {
-        request.headers.contentType = ContentType('application', 'x-www-form-urlencoded');
+        request.headers.contentType = ContentType(
+          'application',
+          'x-www-form-urlencoded',
+        );
         request.write(body);
       }
 
@@ -160,7 +186,11 @@ class Session {
     } on SocketException catch (e) {
       throw AppException(AppErrorCode.network, '网络连接失败：${e.message}', cause: e);
     } on HandshakeException catch (e) {
-      throw AppException(AppErrorCode.network, 'TLS 握手失败：${e.message}', cause: e);
+      throw AppException(
+        AppErrorCode.network,
+        'TLS 握手失败：${e.message}',
+        cause: e,
+      );
     }
   }
 
@@ -169,9 +199,13 @@ class Session {
     String? referer,
     String? accept,
     Duration? requestTimeout,
-  }) =>
-      request(pathOrUrl,
-          referer: referer, accept: accept, requestTimeout: requestTimeout, followRedirects: true);
+  }) => request(
+    pathOrUrl,
+    referer: referer,
+    accept: accept,
+    requestTimeout: requestTimeout,
+    followRedirects: true,
+  );
 
   Future<SessionResponse> postForm(
     String pathOrUrl,
@@ -179,13 +213,14 @@ class Session {
     String? referer,
     String? accept,
     Duration? requestTimeout,
-  }) =>
-      request(pathOrUrl,
-          method: 'POST',
-          form: form,
-          referer: referer,
-          accept: accept,
-          requestTimeout: requestTimeout);
+  }) => request(
+    pathOrUrl,
+    method: 'POST',
+    form: form,
+    referer: referer,
+    accept: accept,
+    requestTimeout: requestTimeout,
+  );
 
   void close() => _client.close(force: true);
 }

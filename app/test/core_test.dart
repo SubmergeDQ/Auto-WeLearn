@@ -68,7 +68,10 @@ void main() {
       );
       expect(data.endsWith('[INTERACTIONINFO]'), isTrue);
       final json = data.split('[INTERACTIONINFO]').first;
-      expect(json.startsWith('{"cmi":{"completion_status":"completed"'), isTrue);
+      expect(
+        json.startsWith('{"cmi":{"completion_status":"completed"'),
+        isTrue,
+      );
       expect(json, contains('"total_time":"180"'));
     });
   });

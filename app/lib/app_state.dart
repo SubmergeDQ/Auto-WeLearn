@@ -74,16 +74,21 @@ class AppState extends ChangeNotifier {
   }
 
   List<Lesson> get candidates => lessons.where((l) {
-        final st = statusOf(l.scoid);
-        return l.visible && (l.complete ? false : st != LessonStatus.done && st != LessonStatus.skipped);
-      }).toList();
+    final st = statusOf(l.scoid);
+    return l.visible &&
+        (l.complete
+            ? false
+            : st != LessonStatus.done && st != LessonStatus.skipped);
+  }).toList();
 
   List<Lesson> get visibleLessons {
     final q = query.trim().toLowerCase();
     return lessons.where((l) {
       if (selectedUnit != null && l.unitIndex != selectedUnit) return false;
       if (filter == 'pending' && l.complete) return false;
-      if (filter == 'failed' && statusOf(l.scoid) != LessonStatus.failed) return false;
+      if (filter == 'failed' && statusOf(l.scoid) != LessonStatus.failed) {
+        return false;
+      }
       if (q.isNotEmpty && !l.location.toLowerCase().contains(q)) return false;
       return true;
     }).toList();
@@ -102,9 +107,12 @@ class AppState extends ChangeNotifier {
     return LessonStatus.pending;
   }
 
-  int get doneCount => lessons.where((l) => statusOf(l.scoid) == LessonStatus.done).length;
-  int get failedCount => lessons.where((l) => statusOf(l.scoid) == LessonStatus.failed).length;
-  int get skippedCount => lessons.where((l) => statusOf(l.scoid) == LessonStatus.skipped).length;
+  int get doneCount =>
+      lessons.where((l) => statusOf(l.scoid) == LessonStatus.done).length;
+  int get failedCount =>
+      lessons.where((l) => statusOf(l.scoid) == LessonStatus.failed).length;
+  int get skippedCount =>
+      lessons.where((l) => statusOf(l.scoid) == LessonStatus.skipped).length;
 
   int get queueTotal => candidates.length + doneCount;
 
@@ -133,7 +141,8 @@ class AppState extends ChangeNotifier {
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/app_state.json');
       if (!await file.exists()) return;
-      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final data =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final cookie = data['cookie'] as String?;
       final s = data['settings'];
       if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
@@ -150,10 +159,9 @@ class AppState extends ChangeNotifier {
     try {
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/app_state.json');
-      await file.writeAsString(jsonEncode({
-        'cookie': cookie,
-        'settings': settings.toJson(),
-      }));
+      await file.writeAsString(
+        jsonEncode({'cookie': cookie, 'settings': settings.toJson()}),
+      );
     } catch (_) {
       // 写盘失败不影响使用
     }
@@ -175,7 +183,9 @@ class AppState extends ChangeNotifier {
     if (!silent) notifyListeners();
 
     try {
-      final pairs = {for (final p in parseCookieInput(cookieText)) p.key: p.value};
+      final pairs = {
+        for (final p in parseCookieInput(cookieText)) p.key: p.value,
+      };
       _session.setCookies(pairs);
       _cookie = cookieText;
       final list = await _api.listCourses();
@@ -257,8 +267,10 @@ class AppState extends ChangeNotifier {
         for (final w in scan.warnings) {
           addLog('warn', w);
         }
-        addLog('info',
-            '扫描完成：${scan.units.length} 单元 / ${scan.lessons.length} 小节 / 待处理 ${scan.candidates.length}');
+        addLog(
+          'info',
+          '扫描完成：${scan.units.length} 单元 / ${scan.lessons.length} 小节 / 待处理 ${scan.candidates.length}',
+        );
       }
     } on AppException catch (e) {
       lastError = e.message;
@@ -299,7 +311,10 @@ class AppState extends ChangeNotifier {
         currentHeartbeats = 0;
         currentWait = pickWait(settings.waitMin, settings.waitMax, rng);
         statuses[lesson.scoid] = LessonStatus.running;
-        addLog('info', '[${i + 1}/${queue.length}] ${shortLocation(lesson)}  rate=${pickCrate(settings.rateMin, settings.rateMax, rng)}%');
+        addLog(
+          'info',
+          '[${i + 1}/${queue.length}] ${shortLocation(lesson)}  rate=${pickCrate(settings.rateMin, settings.rateMax, rng)}%',
+        );
         notifyListeners();
 
         final crate = pickCrate(settings.rateMin, settings.rateMax, rng);
@@ -323,7 +338,9 @@ class AppState extends ChangeNotifier {
         results[lesson.scoid] = result;
         statuses[lesson.scoid] = result.status;
         addLog(
-          result.status == LessonStatus.done ? 'done' : (result.status == LessonStatus.partial ? 'warn' : 'error'),
+          result.status == LessonStatus.done
+              ? 'done'
+              : (result.status == LessonStatus.partial ? 'warn' : 'error'),
           '${result.status.label}  题 ${result.stat.answered}/${result.stat.questions}  '
           '用时 ${result.waitSec}s  心跳 ${result.heartbeats} 次'
           '${result.errorMessage != null ? '  ${result.errorMessage}' : ''}',
@@ -336,8 +353,15 @@ class AppState extends ChangeNotifier {
         }
 
         if (i < queue.length - 1) {
-          final gap = pickInterval(settings.intervalMin, settings.intervalMax, rng);
-          await sleepInterruptible(Duration(milliseconds: (gap * 1000).round()), token);
+          final gap = pickInterval(
+            settings.intervalMin,
+            settings.intervalMax,
+            rng,
+          );
+          await sleepInterruptible(
+            Duration(milliseconds: (gap * 1000).round()),
+            token,
+          );
         }
       }
     } on AppException catch (e) {
@@ -382,8 +406,10 @@ class AppState extends ChangeNotifier {
   }
 }
 
-String shortLocation(Lesson lesson) =>
-    lesson.location.replaceFirst(RegExp(r'^Unit \d+\s*>\s*', caseSensitive: false), '');
+String shortLocation(Lesson lesson) => lesson.location.replaceFirst(
+  RegExp(r'^Unit \d+\s*>\s*', caseSensitive: false),
+  '',
+);
 
 /// Cookie 解析：支持 `a=1; b=2` 与 EditThisCookie JSON 数组
 List<MapEntry<String, String>> parseCookieInput(String raw) {
@@ -402,14 +428,19 @@ List<MapEntry<String, String>> parseCookieInput(String raw) {
       }
     }
   } else if (text.startsWith('{')) {
-    throw AppException(AppErrorCode.config, 'Cookie JSON 必须是数组（EditThisCookie 导出格式）');
+    throw AppException(
+      AppErrorCode.config,
+      'Cookie JSON 必须是数组（EditThisCookie 导出格式）',
+    );
   } else {
     for (final segment in text.split(';')) {
       final part = segment.trim();
       if (part.isEmpty) continue;
       final eq = part.indexOf('=');
       if (eq <= 0) continue;
-      pairs.add(MapEntry(part.substring(0, eq).trim(), part.substring(eq + 1).trim()));
+      pairs.add(
+        MapEntry(part.substring(0, eq).trim(), part.substring(eq + 1).trim()),
+      );
     }
   }
 

@@ -54,16 +54,15 @@ TextStyle monoStyle({
   double size = 12,
   FontWeight weight = FontWeight.w500,
   Color color = Tokens.textSecondary,
-}) =>
-    TextStyle(
-      fontFamily: Tokens.mono,
-      fontFamilyFallback: const ['Roboto Mono', 'Menlo'],
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      fontFeatures: tabular,
-      letterSpacing: 0.2,
-    );
+}) => TextStyle(
+  fontFamily: Tokens.mono,
+  fontFamilyFallback: const ['Roboto Mono', 'Menlo'],
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  fontFeatures: tabular,
+  letterSpacing: 0.2,
+);
 
 ThemeData buildTheme() {
   final base = ThemeData(
@@ -71,6 +70,10 @@ ThemeData buildTheme() {
     brightness: Brightness.light,
     scaffoldBackgroundColor: Tokens.canvas,
     splashFactory: InkSparkle.splashFactory,
+    // 关键：桌面平台默认用 VisualDensity.compact，会把每个按钮压矮 8px
+    // （32 的工具栏按钮变 24、输入框内文偏上），和固定高度的胶囊/图标按钮对不齐。
+    // 这里统一成 standard，所有控件按代码写的尺寸渲染。
+    visualDensity: VisualDensity.standard,
   );
 
   return base.copyWith(
@@ -151,16 +154,16 @@ ThemeData buildTheme() {
 
 /// 工具栏小型填充按钮：固定 32 高，与图标按钮、状态胶囊对齐。
 ButtonStyle toolbarFilled() => FilledButton.styleFrom(
-      minimumSize: const Size(0, Tokens.controlHeight),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-    );
+  minimumSize: const Size(0, Tokens.controlHeight),
+  padding: const EdgeInsets.symmetric(horizontal: 14),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+);
 
 /// 工具栏小型描边按钮，与 [toolbarFilled] 同高。
 ButtonStyle toolbarOutlined() => OutlinedButton.styleFrom(
-      minimumSize: const Size(0, Tokens.controlHeight),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
-    );
+  minimumSize: const Size(0, Tokens.controlHeight),
+  padding: const EdgeInsets.symmetric(horizontal: 12),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+);

@@ -1185,6 +1185,7 @@ JSON 模式输出：
 | 2026-11-06 | `getscoinfo_v7` 的未初始化回包 | §2.4.4 只说「含"学习数据不正确"要先 startsco 再重试」 | 从未学过的小节返回 `{"ret":-1, "msg":"学习数据不正确"}`（键是 `msg` 而不是别处的 `mess`，且冒号后带空格）；**首次 setscoinfo 之后才存在 cmi** | `getCmi()` 返回 `{ok:false, reason:'uninitialized'}`，视为「无历史」而非错误；`alreadyStarted=true` 时不再补发 startsco（本流程进入前已发过），避免重复注册会话 |
 | 2026-11-06 | 心跳是否被接受（V1） | §5.4 未验证，Python 版在刷题流程里没有心跳 | `startsco` → `keepsco_with_getticket_with_updatecmitime`（30–40s 间隔）→ `setscoinfo` → `savescoinfo` 全链路 `ret:0`；提交后 CMI 里 `session_time`/`total_time`/`interactions` 均落库 | 心跳按 §5.4 实现，默认开启；平台拒绝时降级纯等待 |
 | 2026-11-06 | 提交后 `total_time` 的存储语义 | 不确定服务端是「累加」还是「覆盖」 | 首次提交（totalBefore=0）写入 `total_time=60`，读回仍是 `60`；`score.scaled=100`、`interactions` 6 条完整保留 | 默认 `--cmi-time=total`（累计值）；若后续发现重复累加，可切 `--cmi-time=session` |
+| 2026-11-06 | 登录墙判定窗口 | §2.5「正文含 `/Account/Login` 即判会话过期」，未限定扫描范围 | `course_info.aspx` 是一整页 HTML，**靠后的脚本/页脚里也含 `/Account/Login`**。CLI 的 `isLoginWall` 只看前 4000 字符所以正常；Flutter 版一开始全文 `contains`，结果「登录成功 → 扫课程详情 → 报会话失效」，一节也扫不出来 | 统一改为只检查正文前 4000 字符（与 CLI 的 `isLoginWall` 完全一致）。判定函数见 `app/lib/core/api.dart::_guardLogin` |
 
 ### D. 与本仓库 Python 实现的对应关系
 

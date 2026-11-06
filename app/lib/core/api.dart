@@ -18,7 +18,10 @@ class Api {
 
   // ── 课程 ─────────────────────────────────────────────
   Future<List<Course>> listCourses() async {
-    final res = await session.get('/ajax/authCourse.aspx?action=gmc', referer: _refIndex);
+    final res = await session.get(
+      '/ajax/authCourse.aspx?action=gmc',
+      referer: _refIndex,
+    );
     _guardLogin(res);
     final payload = _json(res.text, '课程列表');
     final ret = payload['ret'];
@@ -34,22 +37,32 @@ class Api {
     }
     return raw
         .whereType<Map<String, dynamic>>()
-        .map((e) => Course(
-              cid: '${e['cid']}',
-              name: e['name'] as String? ?? '课程 ${e['cid']}',
-              percent: (e['per'] as num?)?.toInt() ?? 0,
-            ))
+        .map(
+          (e) => Course(
+            cid: '${e['cid']}',
+            name: e['name'] as String? ?? '课程 ${e['cid']}',
+            percent: (e['per'] as num?)?.toInt() ?? 0,
+          ),
+        )
         .toList();
   }
 
   // ── 课程结构 ──────────────────────────────────────────
   Future<CourseMeta> getCourseMeta(String cid) async {
-    final res = await session.get('/student/course_info.aspx?cid=$cid', referer: _refIndex);
+    final res = await session.get(
+      '/student/course_info.aspx?cid=$cid',
+      referer: _refIndex,
+    );
     _guardLogin(res);
     final uid = RegExp(r'"uid"\s*:\s*(\d+)').firstMatch(res.text)?.group(1);
-    final classid = RegExp(r'"classid"\s*:\s*"([^"]*)"').firstMatch(res.text)?.group(1);
+    final classid = RegExp(r'"classid"\s*:\s*"([^"]*)"')
+        .firstMatch(res.text)
+        ?.group(1);
     if (uid == null || classid == null) {
-      throw AppException(AppErrorCode.contractChanged, '课程详情页解析失败：未找到 uid 或 classid');
+      throw AppException(
+        AppErrorCode.contractChanged,
+        '课程详情页解析失败：未找到 uid 或 classid',
+      );
     }
     return CourseMeta(cid: cid, uid: uid, classid: classid);
   }
@@ -100,7 +113,8 @@ class Api {
       return Lesson(
         unitIndex: unitIndex,
         scoid: '${e['id']}',
-        location: e['location'] as String? ?? e['name'] as String? ?? '${e['id']}',
+        location:
+            e['location'] as String? ?? e['name'] as String? ?? '${e['id']}',
         visible: '${e['isvisible'] ?? 'true'}'.toLowerCase() == 'true',
         complete: completeText.contains('已') && !completeText.contains('未'),
         learnTime: e['learntime'] as String? ?? '',
@@ -115,10 +129,11 @@ class Api {
     required String scoid,
     required String classid,
   }) async {
-    final text = await postScoAction(
-      {'action': 'scoAddr', 'cid': cid, 'scoid': scoid},
-      referer: _refStudy(cid, classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'scoAddr',
+      'cid': cid,
+      'scoid': scoid,
+    }, referer: _refStudy(cid, classid, scoid));
     final payload = _json(text, 'scoAddr');
     final addr = payload['addr'] as String?;
     if (addr == null || payload['ret'] != 0) return null;
@@ -128,7 +143,10 @@ class Api {
     final url = part.startsWith('//')
         ? '${_base.startsWith('http://') ? 'http:' : 'https:'}$part'
         : part;
-    return ScoAddress(url: url, location: parts.length > 1 ? parts[1].trim() : '');
+    return ScoAddress(
+      url: url,
+      location: parts.length > 1 ? parts[1].trim() : '',
+    );
   }
 
   Future<String?> fetchTemplate(String url) async {
@@ -147,31 +165,34 @@ class Api {
     Map<String, String> form, {
     required String referer,
   }) async {
-    final res = await session.postForm('/Ajax/SCO.aspx', form, referer: referer);
+    final res = await session.postForm(
+      '/Ajax/SCO.aspx',
+      form,
+      referer: referer,
+    );
     _guardLogin(res);
     return res.text;
   }
 
   Future<bool> startSco(CourseMeta meta, String scoid) async {
-    final text = await postScoAction(
-      {'action': 'startsco160928', 'cid': meta.cid, 'scoid': scoid, 'uid': meta.uid},
-      referer: _refStudy(meta.cid, meta.classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'startsco160928',
+      'cid': meta.cid,
+      'scoid': scoid,
+      'uid': meta.uid,
+    }, referer: _refStudy(meta.cid, meta.classid, scoid));
     return isRetOk(text);
   }
 
   Future<bool> setScoInfo(CourseMeta meta, String scoid, String data) async {
-    final text = await postScoAction(
-      {
-        'action': 'setscoinfo',
-        'cid': meta.cid,
-        'scoid': scoid,
-        'uid': meta.uid,
-        'data': data,
-        'isend': 'False',
-      },
-      referer: _refStudy(meta.cid, meta.classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'setscoinfo',
+      'cid': meta.cid,
+      'scoid': scoid,
+      'uid': meta.uid,
+      'data': data,
+      'isend': 'False',
+    }, referer: _refStudy(meta.cid, meta.classid, scoid));
     return isRetOk(text);
   }
 
@@ -182,22 +203,19 @@ class Api {
     required int sessionTime,
     required int totalTime,
   }) async {
-    final text = await postScoAction(
-      {
-        'action': 'savescoinfo160928',
-        'cid': meta.cid,
-        'scoid': scoid,
-        'uid': meta.uid,
-        'progress': '100',
-        'crate': '$crate',
-        'status': 'unknown',
-        'cstatus': 'completed',
-        'trycount': '0',
-        'session_time': '$sessionTime',
-        'total_time': '$totalTime',
-      },
-      referer: _refStudy(meta.cid, meta.classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'savescoinfo160928',
+      'cid': meta.cid,
+      'scoid': scoid,
+      'uid': meta.uid,
+      'progress': '100',
+      'crate': '$crate',
+      'status': 'unknown',
+      'cstatus': 'completed',
+      'trycount': '0',
+      'session_time': '$sessionTime',
+      'total_time': '$totalTime',
+    }, referer: _refStudy(meta.cid, meta.classid, scoid));
     return isRetOk(text);
   }
 
@@ -207,26 +225,25 @@ class Api {
     required int sessionTime,
     required int totalTime,
   }) async {
-    final text = await postScoAction(
-      {
-        'action': 'keepsco_with_getticket_with_updatecmitime',
-        'uid': meta.uid,
-        'cid': meta.cid,
-        'scoid': scoid,
-        'session_time': '$sessionTime',
-        'total_time': '$totalTime',
-      },
-      referer: _refStudy(meta.cid, meta.classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'keepsco_with_getticket_with_updatecmitime',
+      'uid': meta.uid,
+      'cid': meta.cid,
+      'scoid': scoid,
+      'session_time': '$sessionTime',
+      'total_time': '$totalTime',
+    }, referer: _refStudy(meta.cid, meta.classid, scoid));
     return isRetOk(text);
   }
 
   /// 读 CMI 历史累计。未学过的小节返回 `ret:-1 / 学习数据不正确`，属于正常状态。
   Future<CmiRead> readCmi(CourseMeta meta, String scoid) async {
-    final text = await postScoAction(
-      {'action': 'getscoinfo_v7', 'uid': meta.uid, 'cid': meta.cid, 'scoid': scoid},
-      referer: _refStudy(meta.cid, meta.classid, scoid),
-    );
+    final text = await postScoAction({
+      'action': 'getscoinfo_v7',
+      'uid': meta.uid,
+      'cid': meta.cid,
+      'scoid': scoid,
+    }, referer: _refStudy(meta.cid, meta.classid, scoid));
     final uninitialized = text.contains('学习数据不正确');
     try {
       final outer = jsonDecode(text) as Map<String, dynamic>;
@@ -245,11 +262,25 @@ class Api {
   }
 
   // ── 工具 ──────────────────────────────────────────────
+  /// 登录墙特征。
+  static final RegExp _loginWall = RegExp(
+    "/user/prelogin\\.aspx|/Account/Login|name=[\"']Account[\"']",
+    caseSensitive: false,
+  );
+
+  /// 只看正文前 4000 字符。
+  ///
+  /// 课程详情页（course_info.aspx）是一整页 HTML，页面靠后的脚本/页脚里也会出现
+  /// `/Account/Login` 这类字符串。全文扫描会把正常页面误判成"会话失效"——
+  /// 这正是 GUI 版登录成功却扫不出任何小节的原因。CLI 版用 4000 字符窗口，所以没踩到。
   void _guardLogin(SessionResponse res) {
-    if (res.status == 401 ||
-        res.status == 403 ||
-        res.text.contains('/user/prelogin.aspx') ||
-        res.text.contains('/Account/Login')) {
+    if (res.status == 401 || res.status == 403) {
+      throw AppException(AppErrorCode.authExpired, '登录态已失效，请重新登录');
+    }
+    final head = res.text.length > 4000
+        ? res.text.substring(0, 4000)
+        : res.text;
+    if (_loginWall.hasMatch(head)) {
       throw AppException(AppErrorCode.authExpired, '登录态已失效，请重新登录');
     }
   }

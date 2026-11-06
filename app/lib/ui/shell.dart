@@ -7,7 +7,8 @@ import 'widgets.dart';
 
 /// 通过 InheritedNotifier 分发状态，避免引入额外状态管理依赖
 class AppScope extends InheritedNotifier<AppState> {
-  const AppScope({super.key, required AppState state, required super.child}) : super(notifier: state);
+  const AppScope({super.key, required AppState state, required super.child})
+    : super(notifier: state);
 
   static AppState of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
@@ -21,11 +22,16 @@ class WorkbenchShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final state = AppScope.of(context);
-      if (constraints.maxWidth < 760) return const _MobileShell();
-      return _DesktopShell(compact: constraints.maxWidth < 1180, state: state);
-    });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final state = AppScope.of(context);
+        if (constraints.maxWidth < 760) return const _MobileShell();
+        return _DesktopShell(
+          compact: constraints.maxWidth < 1180,
+          state: state,
+        );
+      },
+    );
   }
 }
 
@@ -94,7 +100,11 @@ class _TopBar extends StatelessWidget {
               color: Tokens.accentSoft,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.school_outlined, size: 18, color: Tokens.accent),
+            child: const Icon(
+              Icons.school_outlined,
+              size: 18,
+              color: Tokens.accent,
+            ),
           ),
           const SizedBox(width: 10),
           // Expanded 而不是 Spacer：课程名过长时省略，避免把右侧按钮挤出屏幕
@@ -107,14 +117,24 @@ class _TopBar extends StatelessWidget {
                   'WeLearn 助手',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.2),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  course == null ? '尚未选择课程' : '${course.name} · ${course.percent}%',
+                  course == null
+                      ? '尚未选择课程'
+                      : '${course.name} · ${course.percent}%',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5, color: Tokens.textTertiary, height: 1.2),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Tokens.textTertiary,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -142,7 +162,11 @@ class _TopBar extends StatelessWidget {
                 key: const Key('toolbar-run'),
                 style: toolbarOutlined(),
                 onPressed: state.stopRun,
-                icon: const Icon(Icons.stop_rounded, size: 16, color: Tokens.danger),
+                icon: const Icon(
+                  Icons.stop_rounded,
+                  size: 16,
+                  color: Tokens.danger,
+                ),
                 label: const Text('停止', style: TextStyle(color: Tokens.danger)),
               )
             else
@@ -151,7 +175,9 @@ class _TopBar extends StatelessWidget {
                 style: toolbarFilled(),
                 onPressed: state.candidates.isEmpty ? null : state.startRun,
                 icon: const Icon(Icons.play_arrow_rounded, size: 17),
-                label: Text('开始运行${state.candidates.isEmpty ? '' : ' · ${state.candidates.length} 节'}'),
+                label: Text(
+                  '开始运行${state.candidates.isEmpty ? '' : ' · ${state.candidates.length} 节'}',
+                ),
               ),
           ],
         ],
@@ -197,7 +223,10 @@ class _AccountChip extends StatelessWidget {
           const PopupMenuItem<String>(
             enabled: false,
             height: 30,
-            child: Text('切换课程', style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+            child: Text(
+              '切换课程',
+              style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+            ),
           ),
           for (final c in state.courses)
             PopupMenuItem<String>(
@@ -208,7 +237,11 @@ class _AccountChip extends StatelessWidget {
                   SizedBox(
                     width: 18,
                     child: c.cid == state.currentCid
-                        ? const Icon(Icons.check, size: 14, color: Tokens.accent)
+                        ? const Icon(
+                            Icons.check,
+                            size: 14,
+                            color: Tokens.accent,
+                          )
                         : null,
                   ),
                   ConstrainedBox(
@@ -219,7 +252,9 @@ class _AccountChip extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: c.cid == state.currentCid ? Tokens.textPrimary : Tokens.textSecondary,
+                        color: c.cid == state.currentCid
+                            ? Tokens.textPrimary
+                            : Tokens.textSecondary,
                       ),
                     ),
                   ),
@@ -248,7 +283,10 @@ class _AccountChip extends StatelessWidget {
             children: [
               Icon(Icons.logout_rounded, size: 15, color: Tokens.danger),
               SizedBox(width: 8),
-              Text('退出登录', style: TextStyle(fontSize: 12.5, color: Tokens.danger)),
+              Text(
+                '退出登录',
+                style: TextStyle(fontSize: 12.5, color: Tokens.danger),
+              ),
             ],
           ),
         ),
@@ -264,14 +302,26 @@ class _AccountChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle_outline, size: 13, color: Tokens.success),
+            const Icon(
+              Icons.check_circle_outline,
+              size: 13,
+              color: Tokens.success,
+            ),
             const SizedBox(width: 5),
             const Text(
               '已登录',
-              style: TextStyle(fontSize: 11.5, color: Tokens.success, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Tokens.success,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            const SizedBox(width: 1),
-            Icon(Icons.expand_more_rounded, size: 15, color: Tokens.success.withValues(alpha: 0.7)),
+            const SizedBox(width: 3),
+            // 视觉上抬 1.5px：文字行盒含下沉部分，纯居中会让三角看起来偏低
+            Transform.translate(
+              offset: const Offset(0, -1.5),
+              child: Caret(color: Tokens.success.withValues(alpha: 0.75), width: 7),
+            ),
           ],
         ),
       ),
@@ -280,7 +330,12 @@ class _AccountChip extends StatelessWidget {
 }
 
 class _IconAction extends StatelessWidget {
-  const _IconAction({super.key, required this.icon, required this.tooltip, required this.onTap});
+  const _IconAction({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -329,6 +384,7 @@ class _Sidebar extends StatelessWidget {
               children: [
                 const SectionLabel('课程'),
                 Container(
+                  key: const Key('course-card'),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Tokens.surfaceAlt,
@@ -342,22 +398,41 @@ class _Sidebar extends StatelessWidget {
                         course?.name ?? '未登录',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.35),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('${course?.percent ?? 0}',
-                              style: monoStyle(size: 22, weight: FontWeight.w600, color: Tokens.accent)),
+                          Text(
+                            '${course?.percent ?? 0}',
+                            style: monoStyle(
+                              size: 22,
+                              weight: FontWeight.w600,
+                              color: Tokens.accent,
+                            ),
+                          ),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 3, left: 2),
-                            child: Text('%', style: monoStyle(size: 12, color: Tokens.accent)),
+                            child: Text(
+                              '%',
+                              style: monoStyle(size: 12, color: Tokens.accent),
+                            ),
                           ),
                           const Spacer(),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 4),
-                            child: Text('平台进度', style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+                            child: Text(
+                              '平台进度',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Tokens.textTertiary,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -374,8 +449,10 @@ class _Sidebar extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
             child: SectionLabel(
               '单元',
-              trailing: Text('${state.lessons.length} 节',
-                  style: monoStyle(size: 10.5, color: Tokens.textTertiary)),
+              trailing: Text(
+                '${state.lessons.length} 节',
+                style: monoStyle(size: 10.5, color: Tokens.textTertiary),
+              ),
             ),
           ),
           Expanded(
@@ -389,14 +466,22 @@ class _Sidebar extends StatelessWidget {
                     itemCount: state.units.length,
                     itemBuilder: (context, i) {
                       final unit = state.units[i];
-                      final inUnit = state.lessons.where((l) => l.unitIndex == unit.index).toList();
-                      final done = inUnit.where((l) => state.statusOf(l.scoid) == LessonStatus.done).length;
+                      final inUnit = state.lessons
+                          .where((l) => l.unitIndex == unit.index)
+                          .toList();
+                      final done = inUnit
+                          .where(
+                            (l) => state.statusOf(l.scoid) == LessonStatus.done,
+                          )
+                          .length;
                       return _UnitRow(
                         unit: unit,
                         done: done,
                         total: inUnit.length,
                         selected: state.selectedUnit == unit.index,
-                        onTap: () => state.setUnit(state.selectedUnit == unit.index ? null : unit.index),
+                        onTap: () => state.setUnit(
+                          state.selectedUnit == unit.index ? null : unit.index,
+                        ),
                       );
                     },
                   ),
@@ -405,8 +490,11 @@ class _Sidebar extends StatelessWidget {
             // 与上方课程卡片的 16px 左右边距保持一致，否则按钮会比卡片宽出一圈
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: OutlinedButton.icon(
+              key: const Key('sidebar-rescan'),
               style: toolbarOutlined(),
-              onPressed: state.currentCid == null ? null : () => state.loadCourse(state.currentCid!),
+              onPressed: state.currentCid == null
+                  ? null
+                  : () => state.loadCourse(state.currentCid!),
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('重新扫描'),
             ),
@@ -459,10 +547,15 @@ class _UnitRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('$done/$total',
-                    style: monoStyle(
-                        size: 10.5,
-                        color: done == total && total > 0 ? Tokens.success : Tokens.textTertiary)),
+                Text(
+                  '$done/$total',
+                  style: monoStyle(
+                    size: 10.5,
+                    color: done == total && total > 0
+                        ? Tokens.success
+                        : Tokens.textTertiary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -515,15 +608,24 @@ class _QueuePane extends StatelessWidget {
                 const Spacer(),
                 SizedBox(
                   width: 200,
-                  height: 32,
+                  height: Tokens.controlHeight,
                   child: TextField(
+                    key: const Key('queue-search'),
                     onChanged: state.setQuery,
+                    textAlignVertical: TextAlignVertical.center,
                     style: const TextStyle(fontSize: 12.5),
                     decoration: const InputDecoration(
                       hintText: '搜索小节',
-                      prefixIcon: Icon(Icons.search, size: 15, color: Tokens.textTertiary),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        size: 15,
+                        color: Tokens.textTertiary,
+                      ),
                       prefixIconConstraints: BoxConstraints(minWidth: 32),
-                      contentPadding: EdgeInsets.symmetric(vertical: 6),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                     ),
                   ),
                 ),
@@ -543,15 +645,23 @@ class _QueuePane extends StatelessWidget {
                       '仅显示 ${state.units.firstWhere((u) => u.index == state.selectedUnit, orElse: () => state.units.first).unitName}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, color: Tokens.accent),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Tokens.accent,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () => state.setUnit(null),
-                    child: const Text('清除',
-                        style: TextStyle(
-                            fontSize: 11.5, decoration: TextDecoration.underline, color: Tokens.accent)),
+                    child: const Text(
+                      '清除',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        decoration: TextDecoration.underline,
+                        color: Tokens.accent,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -559,11 +669,16 @@ class _QueuePane extends StatelessWidget {
           Expanded(
             child: list.isEmpty
                 ? _EmptyHint(
-                    icon: state.loggedIn ? Icons.inbox_outlined : Icons.lock_outline,
+                    icon: state.loggedIn
+                        ? Icons.inbox_outlined
+                        : Icons.lock_outline,
                     text: state.loggedIn ? '没有符合条件的小节' : '先登录，再选择课程',
                     action: state.loggedIn
                         ? null
-                        : TextButton(onPressed: () => _showLoginDialog(context), child: const Text('去登录')),
+                        : TextButton(
+                            onPressed: () => _showLoginDialog(context),
+                            child: const Text('去登录'),
+                          ),
                   )
                 : ListView.builder(
                     itemCount: list.length,
@@ -610,7 +725,9 @@ class _FilterChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? Tokens.textPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(Tokens.radiusControl),
-          border: Border.all(color: active ? Tokens.textPrimary : Tokens.border),
+          border: Border.all(
+            color: active ? Tokens.textPrimary : Tokens.border,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -687,20 +804,35 @@ class _RunPaneState extends State<_RunPane> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Text('运行', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Tokens.textPrimary)),
+                Text(
+                  '运行',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Tokens.textPrimary,
+                  ),
+                ),
                 const Spacer(),
                 if (state.running)
-                  Row(children: [
-                    const SizedBox(
-                      width: 6,
-                      height: 6,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(color: Tokens.accent, shape: BoxShape.circle),
+                  Row(
+                    children: [
+                      const SizedBox(
+                        width: 6,
+                        height: 6,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Tokens.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text('运行中', style: TextStyle(fontSize: 11, color: Tokens.accent)),
-                  ]),
+                      const SizedBox(width: 6),
+                      Text(
+                        '运行中',
+                        style: TextStyle(fontSize: 11, color: Tokens.accent),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -715,9 +847,19 @@ class _RunPaneState extends State<_RunPane> {
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Row(
               children: [
-                Text('日志', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Tokens.textSecondary)),
+                Text(
+                  '日志',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: Tokens.textSecondary,
+                  ),
+                ),
                 const Spacer(),
-                Text('${state.logs.length} 条', style: monoStyle(size: 10.5, color: Tokens.textTertiary)),
+                Text(
+                  '${state.logs.length} 条',
+                  style: monoStyle(size: 10.5, color: Tokens.textTertiary),
+                ),
               ],
             ),
           ),
@@ -730,7 +872,11 @@ class _RunPaneState extends State<_RunPane> {
                     itemCount: state.logs.length,
                     itemBuilder: (context, i) {
                       final log = state.logs[i];
-                      return LogLine(time: log.clock, level: log.level, message: log.message);
+                      return LogLine(
+                        time: log.clock,
+                        level: log.level,
+                        message: log.message,
+                      );
                     },
                   ),
           ),
@@ -759,10 +905,15 @@ class _CurrentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('未选择小节', style: TextStyle(fontSize: 12.5, color: Tokens.textSecondary)),
+            Text(
+              '未选择小节',
+              style: TextStyle(fontSize: 12.5, color: Tokens.textSecondary),
+            ),
             const SizedBox(height: 6),
-            Text('点击队列中的任意一行查看详情',
-                style: TextStyle(fontSize: 11.5, color: Tokens.textTertiary)),
+            Text(
+              '点击队列中的任意一行查看详情',
+              style: TextStyle(fontSize: 11.5, color: Tokens.textTertiary),
+            ),
           ],
         ),
       );
@@ -770,7 +921,9 @@ class _CurrentCard extends StatelessWidget {
 
     final running = state.currentScoid == l.scoid;
     final total = state.currentWait == 0 ? 1 : state.currentWait;
-    final progress = running ? (state.currentElapsed / total).clamp(0.0, 1.0) : 0.0;
+    final progress = running
+        ? (state.currentElapsed / total).clamp(0.0, 1.0)
+        : 0.0;
     final remain = (total - state.currentElapsed).clamp(0, total);
 
     return Container(
@@ -780,7 +933,11 @@ class _CurrentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(Tokens.radiusCard),
         border: Border.all(color: Tokens.border),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A101828), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x0A101828),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -790,10 +947,17 @@ class _CurrentCard extends StatelessWidget {
             l.location,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.35),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 4),
-          Text(l.scoid, style: monoStyle(size: 10.5, color: Tokens.textTertiary)),
+          Text(
+            l.scoid,
+            style: monoStyle(size: 10.5, color: Tokens.textTertiary),
+          ),
           const SizedBox(height: 14),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -808,18 +972,25 @@ class _CurrentCard extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 6, left: 6),
-                child: Text(running ? '剩余' : '预计等待',
-                    style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+                child: Text(
+                  running ? '剩余' : '预计等待',
+                  style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+                ),
               ),
               const Spacer(),
               if (running)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('心跳 ${state.currentHeartbeats}', style: monoStyle(size: 11, color: Tokens.textSecondary)),
+                    Text(
+                      '心跳 ${state.currentHeartbeats}',
+                      style: monoStyle(size: 11, color: Tokens.textSecondary),
+                    ),
                     const SizedBox(height: 2),
-                    Text('${state.currentElapsed}s / ${total}s',
-                        style: monoStyle(size: 10.5, color: Tokens.textTertiary)),
+                    Text(
+                      '${state.currentElapsed}s / ${total}s',
+                      style: monoStyle(size: 10.5, color: Tokens.textTertiary),
+                    ),
                   ],
                 ),
             ],
@@ -829,7 +1000,10 @@ class _CurrentCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              _Meta(label: '题目', value: '${state.results[l.scoid]?.stat.questions ?? '—'}'),
+              _Meta(
+                label: '题目',
+                value: '${state.results[l.scoid]?.stat.questions ?? '—'}',
+              ),
               const SizedBox(width: 18),
               _Meta(label: '状态', value: state.statusOf(l.scoid).label),
               const Spacer(),
@@ -857,7 +1031,10 @@ class _Meta extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(label, style: const TextStyle(fontSize: 10.5, color: Tokens.textTertiary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10.5, color: Tokens.textTertiary),
+        ),
         const SizedBox(width: 5),
         Text(value, style: monoStyle(size: 11.5, color: Tokens.textPrimary)),
       ],
@@ -882,15 +1059,25 @@ class _StatusBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          SizedBox(width: 160, child: ThinBar(value: state.progress, height: 4)),
+          SizedBox(
+            width: 160,
+            child: ThinBar(value: state.progress, height: 4),
+          ),
           const SizedBox(width: 12),
-          Text('${(state.progress * 100).round()}%', style: monoStyle(size: 11, color: Tokens.textSecondary)),
+          Text(
+            '${(state.progress * 100).round()}%',
+            style: monoStyle(size: 11, color: Tokens.textSecondary),
+          ),
           const SizedBox(width: 20),
           _Count(label: '已完成', value: state.doneCount, color: Tokens.success),
           const SizedBox(width: 14),
           _Count(label: '失败', value: state.failedCount, color: Tokens.danger),
           const SizedBox(width: 14),
-          _Count(label: '待处理', value: state.candidates.length, color: Tokens.textSecondary),
+          _Count(
+            label: '待处理',
+            value: state.candidates.length,
+            color: Tokens.textSecondary,
+          ),
           const Spacer(),
           if (state.running || remain > 0)
             Text(
@@ -921,9 +1108,16 @@ class _Count extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(width: 5, height: 5, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Tokens.textTertiary),
+        ),
         const SizedBox(width: 5),
         Text('$value', style: monoStyle(size: 11.5, color: Tokens.textPrimary)),
       ],
@@ -945,7 +1139,10 @@ class _EmptyHint extends StatelessWidget {
         children: [
           Icon(icon, size: 26, color: const Color(0xFFC4CAD3)),
           const SizedBox(height: 10),
-          Text(text, style: const TextStyle(fontSize: 12, color: Tokens.textTertiary)),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 12, color: Tokens.textTertiary),
+          ),
           ?action,
         ],
       ),
@@ -974,10 +1171,12 @@ class _MobileShell extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(course?.name ?? 'WeLearn 助手',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(
+              course?.name ?? 'WeLearn 助手',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
             Text(
               state.loggedIn ? '${state.candidates.length} 节待处理' : '未登录',
               style: const TextStyle(fontSize: 11, color: Tokens.textTertiary),
@@ -999,7 +1198,11 @@ class _MobileShell extends StatelessWidget {
                   value: 'logout',
                   child: Row(
                     children: [
-                      Icon(Icons.logout_rounded, size: 16, color: Tokens.danger),
+                      Icon(
+                        Icons.logout_rounded,
+                        size: 16,
+                        color: Tokens.danger,
+                      ),
                       SizedBox(width: 8),
                       Text('退出登录', style: TextStyle(color: Tokens.danger)),
                     ],
@@ -1058,16 +1261,24 @@ class _MobileShell extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       '${state.doneCount} 已完成 · ${state.candidates.length} 待处理',
-                      style: const TextStyle(fontSize: 11, color: Tokens.textTertiary),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Tokens.textTertiary,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
               state.running
-                  ? OutlinedButton(onPressed: state.stopRun, child: const Text('停止'))
+                  ? OutlinedButton(
+                      onPressed: state.stopRun,
+                      child: const Text('停止'),
+                    )
                   : FilledButton(
-                      onPressed: state.candidates.isEmpty ? null : state.startRun,
+                      onPressed: state.candidates.isEmpty
+                          ? null
+                          : state.startRun,
                       child: const Text('开始'),
                     ),
             ],
@@ -1092,7 +1303,11 @@ class _MobileShell extends StatelessWidget {
           itemCount: state.logs.length,
           itemBuilder: (context, i) {
             final log = state.logs[i];
-            return LogLine(time: log.clock, level: log.level, message: log.message);
+            return LogLine(
+              time: log.clock,
+              level: log.level,
+              message: log.message,
+            );
           },
         ),
       ),
@@ -1110,17 +1325,29 @@ Future<bool> _confirmLogout(BuildContext context) async {
     builder: (context) => AlertDialog(
       backgroundColor: Tokens.surface,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-      title: const Text('退出登录', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tokens.radiusCard),
+      ),
+      title: const Text(
+        '退出登录',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
       content: const SizedBox(
         width: 360,
         child: Text(
           '退出后会清除本机保存的 Cookie 与当前课程数据，下次需要重新粘贴 Cookie 才能登录。运行设置会保留。',
-          style: TextStyle(fontSize: 12.5, color: Tokens.textSecondary, height: 1.5),
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
           onPressed: () => Navigator.pop(context, true),
@@ -1142,8 +1369,13 @@ Future<void> _showLoginDialog(BuildContext context) async {
       builder: (context, setLocal) => AlertDialog(
         backgroundColor: Tokens.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-        title: const Text('登录 WE Learn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '登录 WE Learn',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         content: SizedBox(
           width: 460,
           child: Column(
@@ -1152,7 +1384,11 @@ Future<void> _showLoginDialog(BuildContext context) async {
             children: [
               const Text(
                 '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
-                style: TextStyle(fontSize: 12, color: Tokens.textSecondary, height: 1.5),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Tokens.textSecondary,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -1161,12 +1397,18 @@ Future<void> _showLoginDialog(BuildContext context) async {
                 style: const TextStyle(fontSize: 12, height: 1.4),
                 decoration: const InputDecoration(
                   hintText: 'acw_tc=...; area=dbC; .AspNet.Cookies=...',
-                  hintStyle: TextStyle(fontSize: 11.5, color: Tokens.textTertiary),
+                  hintStyle: TextStyle(
+                    fontSize: 11.5,
+                    color: Tokens.textTertiary,
+                  ),
                 ),
               ),
               if (state.lastError != null) ...[
                 const SizedBox(height: 10),
-                Text(state.lastError!, style: const TextStyle(fontSize: 11.5, color: Tokens.danger)),
+                Text(
+                  state.lastError!,
+                  style: const TextStyle(fontSize: 11.5, color: Tokens.danger),
+                ),
               ],
               const SizedBox(height: 10),
               const Text(
@@ -1177,7 +1419,10 @@ Future<void> _showLoginDialog(BuildContext context) async {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: state.busy
                 ? null
@@ -1208,8 +1453,13 @@ Future<void> _showSettings(BuildContext context) async {
       builder: (context, setState) => AlertDialog(
         backgroundColor: Tokens.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-        title: const Text('运行设置', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '运行设置',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -1222,7 +1472,9 @@ Future<void> _showSettings(BuildContext context) async {
                 max: 900,
                 range: draft.waitMin.toDouble().clamp(30, 900),
                 range2: draft.waitMax.toDouble().clamp(30, 900),
-                onChange: (a, b) => setState(() => draft = draft.copyWith(waitMin: a, waitMax: b)),
+                onChange: (a, b) => setState(
+                  () => draft = draft.copyWith(waitMin: a, waitMax: b),
+                ),
               ),
               _RangeField(
                 label: '目标正确率（%）',
@@ -1230,7 +1482,9 @@ Future<void> _showSettings(BuildContext context) async {
                 max: 100,
                 range: draft.rateMin.toDouble(),
                 range2: draft.rateMax.toDouble(),
-                onChange: (a, b) => setState(() => draft = draft.copyWith(rateMin: a, rateMax: b)),
+                onChange: (a, b) => setState(
+                  () => draft = draft.copyWith(rateMin: a, rateMax: b),
+                ),
               ),
               _RangeField(
                 label: '节间间隔（秒）',
@@ -1238,25 +1492,35 @@ Future<void> _showSettings(BuildContext context) async {
                 max: 60,
                 range: draft.intervalMin.toDouble(),
                 range2: draft.intervalMax.toDouble(),
-                onChange: (a, b) => setState(() => draft = draft.copyWith(intervalMin: a, intervalMax: b)),
+                onChange: (a, b) => setState(
+                  () => draft = draft.copyWith(intervalMin: a, intervalMax: b),
+                ),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: draft.skipOralLesson,
-                onChanged: (v) => setState(() => draft = draft.copyWith(skipOralLesson: v)),
+                onChanged: (v) =>
+                    setState(() => draft = draft.copyWith(skipOralLesson: v)),
                 title: const Text('跳过口语小节', style: TextStyle(fontSize: 12.5)),
-                subtitle: const Text('按小节名识别，重新扫描后生效',
-                    style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+                subtitle: const Text(
+                  '按小节名识别，重新扫描后生效',
+                  style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+                ),
               ),
               const SizedBox(height: 4),
-              const Text('口语/录音类题目默认不提交（解析层已跳过）。',
-                  style: TextStyle(fontSize: 11, color: Tokens.textTertiary)),
+              const Text(
+                '口语/录音类题目默认不提交（解析层已跳过）。',
+                style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () async {
               await state.saveSettings(draft);
@@ -1299,9 +1563,18 @@ class _RangeField extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Tokens.textSecondary)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Tokens.textSecondary,
+                ),
+              ),
               const Spacer(),
-              Text('${start.round()} – ${end.round()}', style: monoStyle(size: 11.5, color: Tokens.textPrimary)),
+              Text(
+                '${start.round()} – ${end.round()}',
+                style: monoStyle(size: 11.5, color: Tokens.textPrimary),
+              ),
             ],
           ),
           RangeSlider(

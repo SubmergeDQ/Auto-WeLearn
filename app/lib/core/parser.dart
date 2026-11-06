@@ -61,7 +61,15 @@ const _legacyTypeMap = <String, QuestionType>{
 };
 
 /// 口语关键词。刻意不含 audio：听力题通常带答案，仍需提交
-const _oralKeywords = ['speak', 'voice', 'record', 'oral', 'pron', 'repeat', 'readaloud'];
+const _oralKeywords = [
+  'speak',
+  'voice',
+  'record',
+  'oral',
+  'pron',
+  'repeat',
+  'readaloud',
+];
 
 bool _looksOral(String text) {
   final lower = text.toLowerCase();
@@ -72,7 +80,12 @@ String _clean(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 ParseResult parseSco(String html, {bool skipOral = true}) {
   if (html.trim().isEmpty) {
-    return ParseResult(questions: const [], oral: 0, strategy: 'none', warnings: const ['模板为空']);
+    return ParseResult(
+      questions: const [],
+      oral: 0,
+      strategy: 'none',
+      warnings: const ['模板为空'],
+    );
   }
   final doc = html_parser.parse(html);
   final courseware = _parseCourseware(doc, skipOral);
@@ -108,9 +121,12 @@ ParseResult _parseCourseware(Document doc, bool skipOral) {
   var oral = 0;
 
   for (final block in doc.querySelectorAll('[data-controltype]')) {
-    final rawType = (block.attributes['data-controltype'] ?? '').trim().toLowerCase();
+    final rawType = (block.attributes['data-controltype'] ?? '')
+        .trim()
+        .toLowerCase();
     final type = _controlTypeMap[rawType];
-    final isOral = _looksOral(rawType) ||
+    final isOral =
+        _looksOral(rawType) ||
         (type != null && _looksOral(block.attributes['class'] ?? ''));
 
     if (isOral) {
@@ -131,45 +147,65 @@ ParseResult _parseCourseware(Document doc, bool skipOral) {
         warnings.add('填空块 ${block.attributes['data-id'] ?? '(无 id)'} 没有解析到答案');
         continue;
       }
-      questions.add(Question(type: QuestionType.blank, answer: answer, tag: rawType));
+      questions.add(
+        Question(type: QuestionType.blank, answer: answer, tag: rawType),
+      );
       continue;
     }
 
     final labels = _choiceAnswers(block);
     if (labels.isEmpty) {
-      warnings.add('选择块 ${block.attributes['data-id'] ?? '(无 id)'} 没有 data-solution 选项');
+      warnings.add(
+        '选择块 ${block.attributes['data-id'] ?? '(无 id)'} 没有 data-solution 选项',
+      );
       continue;
     }
 
-    final isTof = labels.length == 1 &&
+    final isTof =
+        labels.length == 1 &&
         labels.every((l) => l == 'T' || l == 'F') &&
         _isBinaryOptions(block);
-    questions.add(Question(
-      type: isTof ? QuestionType.tof : type,
-      answer: labels.join(','),
-      tag: rawType,
-    ));
+    questions.add(
+      Question(
+        type: isTof ? QuestionType.tof : type,
+        answer: labels.join(','),
+        tag: rawType,
+      ),
+    );
   }
 
-  return ParseResult(questions: questions, oral: oral, strategy: 'courseware', warnings: warnings);
+  return ParseResult(
+    questions: questions,
+    oral: oral,
+    strategy: 'courseware',
+    warnings: warnings,
+  );
 }
 
 Question? _recoverOralAnswer(Element block, QuestionType? type) {
-  final rawType = (block.attributes['data-controltype'] ?? '').trim().toLowerCase();
+  final rawType = (block.attributes['data-controltype'] ?? '')
+      .trim()
+      .toLowerCase();
   final blank = _blankAnswer(block);
   if (blank != null && blank.isNotEmpty) {
     return Question(type: QuestionType.blank, answer: blank, tag: rawType);
   }
   final labels = _choiceAnswers(block);
   if (labels.isNotEmpty) {
-    return Question(type: type ?? QuestionType.choice, answer: labels.join(','), tag: rawType);
+    return Question(
+      type: type ?? QuestionType.choice,
+      answer: labels.join(','),
+      tag: rawType,
+    );
   }
   return null;
 }
 
 /// 填空答案：result 文本与 data-solution 的三种关系（附录 C-6）
 String? _blankAnswer(Element block) {
-  final input = block.querySelector('input[data-solution], textarea[data-solution]');
+  final input = block.querySelector(
+    'input[data-solution], textarea[data-solution]',
+  );
   final solution = _clean(input?.attributes['data-solution'] ?? '');
   final resultEl = block.querySelector('[data-itemtype="result"]');
   final result = _clean(resultEl?.text ?? '');
@@ -183,9 +219,12 @@ String reconcileBlankAnswer(String solution, String result) {
   if (sol.isEmpty) return res;
   if (res.isEmpty) return sol;
 
-  final stripped = res.replaceAll(RegExp(r'\s*[（(][^（）()]*[）)]\s*$'), '').trim();
-  final segments =
-      sol.contains('/') ? sol.split('/').map(_clean).where((s) => s.isNotEmpty).toList() : <String>[];
+  final stripped = res
+      .replaceAll(RegExp(r'\s*[（(][^（）()]*[）)]\s*$'), '')
+      .trim();
+  final segments = sol.contains('/')
+      ? sol.split('/').map(_clean).where((s) => s.isNotEmpty).toList()
+      : <String>[];
 
   if (segments.isNotEmpty) {
     for (final s in segments) {
@@ -200,7 +239,8 @@ String reconcileBlankAnswer(String solution, String result) {
   return res;
 }
 
-bool _sameText(String a, String b) => a.trim().toLowerCase() == b.trim().toLowerCase();
+bool _sameText(String a, String b) =>
+    a.trim().toLowerCase() == b.trim().toLowerCase();
 
 /// 取选项字母：兼容 `<li><span>T</span></li>` 与 `<li><span><span>A.</span></span><span>…</span></li>`
 String _optionLabel(Element li) {
@@ -263,23 +303,35 @@ ParseResult _parseLegacy(Document doc) {
     var type = _legacyTypeMap[short];
     String attr(String name) => _clean(attrs[name] ?? '');
     var answer = type == QuestionType.blank
-        ? (attr('answer').isNotEmpty ? attr('answer') : (attr('data-answer').isNotEmpty ? attr('data-answer') : _clean(el.text)))
+        ? (attr('answer').isNotEmpty
+              ? attr('answer')
+              : (attr('data-answer').isNotEmpty
+                    ? attr('data-answer')
+                    : _clean(el.text)))
         : (attr('key').isNotEmpty
-            ? attr('key')
-            : (attr('answer').isNotEmpty
-                ? attr('answer')
-                : (attr('data-answer').isNotEmpty ? attr('data-answer') : attr('value'))));
+              ? attr('key')
+              : (attr('answer').isNotEmpty
+                    ? attr('answer')
+                    : (attr('data-answer').isNotEmpty
+                          ? attr('data-answer')
+                          : attr('value'))));
 
     if (answer.isEmpty) continue;
     if (type == null) {
       type = QuestionType.choice;
       warnings.add('未知题型 <$tag> 有答案，按 choice 透传');
     }
-    if (type == QuestionType.choice && RegExp(r'^[A-Z]{2,8}$').hasMatch(answer)) {
+    if (type == QuestionType.choice &&
+        RegExp(r'^[A-Z]{2,8}$').hasMatch(answer)) {
       answer = answer.split('').join(',');
     }
     questions.add(Question(type: type, answer: answer, tag: short));
   }
 
-  return ParseResult(questions: questions, oral: oral, strategy: 'legacy', warnings: warnings);
+  return ParseResult(
+    questions: questions,
+    oral: oral,
+    strategy: 'legacy',
+    warnings: warnings,
+  );
 }
