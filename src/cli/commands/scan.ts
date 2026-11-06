@@ -7,6 +7,8 @@ import { writeJson, writeResult, type CliContext } from '../context.js';
 export interface ScanFlags {
   course: string;
   unit?: string;
+  /** commander 的 --no-skip-oral 会把 skipOral 默认置 true */
+  skipOral?: boolean;
 }
 
 export async function scanCommand(flags: ScanFlags, ctx: CliContext): Promise<number> {
@@ -25,7 +27,7 @@ export async function scanCommand(flags: ScanFlags, ctx: CliContext): Promise<nu
       uid: meta.uid,
       classid: meta.classid,
       unit,
-      skipOralLesson: true,
+      skipOralLesson: flags.skipOral !== false,
     },
     { signal: ctx.signal, logger: ctx.logger },
   );

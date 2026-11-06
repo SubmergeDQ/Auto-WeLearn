@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 *.log
+*.tgz
 
 # 运行期产物：会话、状态、报告
 .welearn-cli/

@@ -42,6 +42,7 @@ export async function runCli(argv: string[], opts: { signal: AbortSignal }): Pro
     .description('扫描课程结构与完成进度，输出待处理队列')
     .requiredOption('--course <cid>', '课程 ID（来自 login 输出）')
     .option('--unit <n|all>', '只扫描指定单元（1-based），默认 all', 'all')
+    .option('--no-skip-oral', '统计口径包含整节口语任务（默认跳过）')
     .action(async (localOpts: Record<string, unknown>, cmd: Command) => {
       exitCode = await scanCommand(localOpts as unknown as ScanFlags, buildContext(cmd, opts.signal));
     });
