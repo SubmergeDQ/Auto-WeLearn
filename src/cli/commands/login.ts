@@ -1,6 +1,7 @@
 import { ConfigError } from '../../core/errors.js';
 import { listCourses } from '../../core/api/course.js';
 import { saveSessionJar } from '../../core/auth/session-store.js';
+import { browserLogin } from '../../core/auth/browser.js';
 import { buildSession } from '../session-factory.js';
 import { writeJson, writeResult, type CliContext } from '../context.js';
 
@@ -11,14 +12,30 @@ export interface LoginFlags {
 }
 
 export async function loginCommand(flags: LoginFlags, ctx: CliContext): Promise<number> {
-  if (flags.browser) {
-    throw new ConfigError('浏览器登录（--browser）将在 M7 交付，当前请使用 --cookie');
-  }
   if (flags.account || flags.passwordEnv) {
-    throw new ConfigError('账号密码登录（实验性）将在 M7 交付，当前请使用 --cookie');
+    throw new ConfigError(
+      '账号密码登录（SSO）尚未实现：该流程依赖服务端生成的 PKCE state，改版风险高。' +
+        '请改用 --cookie，或加 --browser 用本机浏览器登录',
+    );
   }
 
-  const { session, origin } = buildSession(ctx.config, ctx.sessionSource, ctx.logger);
+  let source = ctx.sessionSource;
+  let origin = '';
+
+  if (flags.browser) {
+    const cookies = await browserLogin({
+      baseUrl: ctx.config.baseUrl,
+      timeoutMs: ctx.config.timeoutMs * 12,
+      signal: ctx.signal,
+      logger: ctx.logger,
+    });
+    source = { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') };
+    origin = 'browser';
+  }
+
+  const built = buildSession(ctx.config, source, ctx.logger);
+  const { session } = built;
+  if (origin.length === 0) origin = built.origin;
 
   const courses = await listCourses(session, { signal: ctx.signal, logger: ctx.logger });
   const savedTo = saveSessionJar(session.jar, ctx.logger);

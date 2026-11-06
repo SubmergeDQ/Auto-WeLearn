@@ -1216,6 +1216,10 @@ JSON 模式输出：
 | E-8 | 批次 A（M0–M3）只交付 dry-run；真实提交留到批次 B | 先让用户用真实账号核对解析结果，再动写操作，避免用错解析器刷出错误成绩 |
 | E-9 | `--no-skip-oral` 反向开关，`--skip-oral` 默认开启 | commander 的 `--no-x` 会把 `x` 默认置 true，正好表达「默认跳过」 |
 | E-10 | 内容页协议前缀取自 `session.baseUrl` | 真实平台是 https，本地 mock 是 http；写死 https 会让契约测试无法覆盖 scoAddr 全链路 |
+| E-11 | 账号密码 SSO 登录**不实现**，`--account` 直接给出改用 Cookie / 浏览器的提示 | 该流程依赖服务端生成并加密的 PKCE `state`，无法脱离浏览器复现；规格也标注为「实验性、失败时提示改用 Cookie」。实现一个大概率失效的流程比不实现更糟 |
+| E-12 | `concurrency` 保留 1/2/3，但 >1 只在同批次内并发，且打风险提示 | 平台按单元顺序解锁，跨单元并发没有收益；默认仍为串行 |
+| E-13 | 浏览器登录用**持久化 profile**（`~/.welearn-cli/browser-profile`），并懒加载 `playwright-core` | 学校 SSO 常有设备校验，持久化后一般不用反复登录；懒加载保证不用该功能时不增加运行时依赖 |
+| E-14 | 周期复检只重入队「本地记为完成但服务端仍未完成」的小节，最多 2 次 | 这类不一致通常来自 savescoinfo 未真正落库；无上限重试会掩盖真实故障 |
 
 ### F. 当前交付进度
 
@@ -1227,8 +1231,8 @@ JSON 模式输出：
 | M3 解析与 dry-run | 完成 | 双解析器 + jsEscape + interactions + inspect + run --dry-run |
 | M4 单节提交 | 完成 | startsco / setscoinfo / savescoinfo，请求体由 mock 逐字段断言 |
 | M5 等待与保活 | 完成 | 心跳 + session_time/total_time；真实单节验证通过 |
-| M6 队列/断点/报告 | 待批次 C | --resume / 汇总 / 退出码（基础循环已在 M4 落地） |
-| M7 硬化与交付 | 待批次 C | Playwright 登录 / tsup / README |
+| M6 队列/断点/报告 | 完成 | 周期复检（每 5 节或 10 分钟，未落库的重入队最多 2 次）、--resume、汇总报告、退出码 |
+| M7 硬化与交付 | 完成（除账号密码登录） | Playwright 浏览器登录、concurrency 2/3、tsup 打包、README |
 
 ### G. 待实测验证项结论（§11）
 
@@ -1239,6 +1243,8 @@ JSON 模式输出：
 | V3 | **通过**：`iscomplete` 稳定只有「已完成」「未完成」两种取值 | 283 节全量扫描，取值集合仅此二值 |
 | V4 | 待验证：账号密码 SSO 登录 | M7 交付；当前只支持 Cookie |
 | V5 | **通过**：提交后 `scoLeaves` 立即显示已完成 | 提交前后扫描对比：Unit 2 已完成 31 → 32，待处理 5 → 4 |
+| V6 | **通过**：长等待（5–8 分钟）下心跳持续被接受 | Unit 3 两节连跑：375s / 11 次心跳、377s / 12 次心跳，全部 `ret:0`，两次提交均 `setscoinfo=ok savescoinfo=ok`，总用时 12m54s |
+| V7 | **通过**：零题目的媒体页也能正常完成 | `m-1-3-2`（Conversation）解析 0 题、跳过 1 道口语题，提交空 interactions 后平台仍标记完成 |
 
 
 

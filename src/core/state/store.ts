@@ -77,7 +77,7 @@ export function recordLesson(
   const prev = state.lessons[scoid];
   state.lessons[scoid] = {
     status: patch.status,
-    attempts: patch.attempts ?? prev?.attempts ?? 1,
+    attempts: patch.attempts ?? (prev?.attempts ?? 0) + 1,
     ...(patch.crate !== undefined ? { crate: patch.crate } : {}),
     ...(patch.waitSec !== undefined ? { waitSec: patch.waitSec } : {}),
     finishedAt: new Date().toISOString(),

@@ -28,9 +28,7 @@ export function buildSession(
   config: AppConfig,
   source: SessionSource,
   logger: Logger,
-  signal?: AbortSignal,
 ): BuiltSession {
-  void signal;
   const jar = loadSessionJar(logger);
   const session = new Session({
     baseUrl: config.baseUrl,

@@ -1,4 +1,4 @@
-import { ConfigError, toAppError } from '../../core/errors.js';
+import { toAppError } from '../../core/errors.js';
 import { getCourseMeta } from '../../core/api/study.js';
 import { scanCourse } from '../../core/plan/scanner.js';
 import { prepareLesson } from '../../core/run/prepare.js';
@@ -169,24 +169,22 @@ async function liveRun(
   startedAt: Date,
 ): Promise<number> {
   const results: LessonResult[] = [];
+  const attempts = new Map<string, number>();
+  const pending = [...queue];
 
-  for (let i = 0; i < queue.length; i++) {
-    const lesson = queue[i];
-    if (!lesson) continue;
+  // 复检节奏：每 5 节 或 每 10 分钟，取先到者
+  const verifyEvery = Math.max(1, Math.min(5, queue.length));
+  let sinceVerify = 0;
+  let lastVerifyAt = Date.now();
 
-    if (ctx.signal.aborted) break;
-
+  const executeLesson = async (lesson: Lesson, label: string): Promise<LessonResult> => {
     const crate = pickCrate(config.rate);
     const waitSec = pickWait(config.wait);
 
-    ctx.logger.stage(
-      'RUN',
-      `[${i + 1}/${queue.length}] ${shortLocation(lesson)}  scoid=${lesson.scoid}  rate=${crate}%`,
-    );
+    ctx.logger.stage('RUN', `${label} ${shortLocation(lesson)}  scoid=${lesson.scoid}  rate=${crate}%`);
 
-    let result: LessonResult;
     try {
-      result = await runLesson({
+      return await runLesson({
         session,
         ctx: { cid: config.course, scoid: lesson.scoid, uid: runState.course.uid, classid },
         location: lesson.location,
@@ -200,7 +198,7 @@ async function liveRun(
     } catch (raw) {
       const err = toAppError(raw);
       if (err.code === 'AUTH_EXPIRED') throw err;
-      result = {
+      return {
         scoid: lesson.scoid,
         location: lesson.location,
         status: 'failed',
@@ -208,32 +206,106 @@ async function liveRun(
         waitSec: 0,
         heartbeats: 0,
         stats: { questions: 0, oral: 0, answered: 0 },
-        attempts: 1,
+        attempts: (attempts.get(lesson.scoid) ?? 0) + 1,
         errorCode: err.code,
         errorMessage: err.message,
       };
     }
+  };
 
+  const commit = (lesson: Lesson, result: LessonResult): void => {
+    attempts.set(lesson.scoid, (attempts.get(lesson.scoid) ?? 0) + 1);
     results.push(result);
     recordLesson(runState, lesson.scoid, {
       status: result.status,
+      attempts: attempts.get(lesson.scoid),
       crate: result.crate,
       waitSec: result.waitSec,
       ...(result.errorCode ? { errorCode: result.errorCode } : {}),
     });
     saveState(config.statePath, runState);
-
     logResult(ctx, result);
+  };
 
-    if (result.status === 'interrupted') break;
+  const maybeReverify = async (remaining: number): Promise<void> => {
+    sinceVerify++;
+    if (remaining <= 0) return;
+    if (sinceVerify < verifyEvery && (Date.now() - lastVerifyAt) / 60_000 < 10) return;
 
-    if (i < queue.length - 1 && !ctx.signal.aborted) {
-      const gap = pickInterval(config.interval);
-      ctx.logger.stage('NEXT', `↳ ${(gap).toFixed(1)}s 后进入下一节`);
-      try {
-        await interruptibleSleep(gap * 1000, ctx.signal);
-      } catch {
-        break;
+    sinceVerify = 0;
+    lastVerifyAt = Date.now();
+    const requeue = await reverify(session, config, classid, runState, attempts, ctx);
+    if (requeue.length > 0) {
+      pending.push(...requeue);
+      ctx.logger.warn(`复检：${requeue.length} 节服务端仍显示未完成，已重新入队`);
+    }
+  };
+
+  if (config.concurrency === 1) {
+    for (let index = 0; index < pending.length; index++) {
+      const lesson = pending[index];
+      if (!lesson) continue;
+      if (ctx.signal.aborted) break;
+
+      const result = await executeLesson(lesson, `[${index + 1}/${pending.length}]`);
+      commit(lesson, result);
+
+      if (result.status === 'interrupted') break;
+
+      await maybeReverify(pending.length - 1 - index);
+
+      if (index < pending.length - 1 && !ctx.signal.aborted) {
+        const gap = pickInterval(config.interval);
+        ctx.logger.stage('NEXT', `↳ ${gap.toFixed(1)}s 后进入下一节`);
+        try {
+          await interruptibleSleep(gap * 1000, ctx.signal);
+        } catch {
+          break;
+        }
+      }
+    }
+  } else {
+    // 并发模式：小批次 Promise.allSettled，批次间固定 0.5-1s 间隔。
+    // 平台是顺序解锁的，跨单元并发没有意义，这里只用于同一批次内的提速。
+    ctx.logger.warn(`并发模式 concurrency=${config.concurrency}：平台顺序解锁，过快可能被判异常，请自行评估风险`);
+    for (let start = 0; start < pending.length; start += config.concurrency) {
+      if (ctx.signal.aborted) break;
+      const batch = pending.slice(start, start + config.concurrency);
+      const settled = await Promise.allSettled(
+        batch.map((lesson, offset) => executeLesson(lesson, `[${start + offset + 1}/${pending.length}]`)),
+      );
+
+      for (let offset = 0; offset < settled.length; offset++) {
+        const lesson = batch[offset];
+        if (!lesson) continue;
+        const item = settled[offset];
+        if (item && item.status === 'fulfilled') {
+          commit(lesson, item.value);
+        } else if (item) {
+          const err = toAppError(item.reason);
+          commit(lesson, {
+            scoid: lesson.scoid,
+            location: lesson.location,
+            status: 'failed',
+            crate: 0,
+            waitSec: 0,
+            heartbeats: 0,
+            stats: { questions: 0, oral: 0, answered: 0 },
+            attempts: (attempts.get(lesson.scoid) ?? 0) + 1,
+            errorCode: err.code,
+            errorMessage: err.message,
+          });
+        }
+      }
+
+      await maybeReverify(pending.length - start - batch.length);
+
+      if (start + config.concurrency < pending.length && !ctx.signal.aborted) {
+        try {
+          await interruptibleSleep(500 + Math.random() * 500, ctx.signal);
+        } catch {
+          break;
+        }
       }
     }
   }
@@ -272,6 +344,47 @@ async function liveRun(
   return 0;
 }
 
+/**
+ * 周期性复检：重新拉一遍 scoLeaves，找出「本地记为完成、但服务端仍是未完成」的小节。
+ * 这类不一致通常来自 savescoinfo 成功但平台没落库，重入队一次通常就正常。
+ * 每节最多重试 2 次，避免死循环。
+ */
+async function reverify(
+  session: ReturnType<typeof buildSession>['session'],
+  config: ReturnType<typeof parseRunFlags>,
+  classid: string,
+  runState: ReturnType<typeof emptyState>,
+  attempts: Map<string, number>,
+  ctx: CliContext,
+): Promise<Lesson[]> {
+  try {
+    const scan = await scanCourse(
+      session,
+      {
+        cid: config.course,
+        uid: runState.course.uid,
+        classid,
+        unit: config.unit,
+        skipOralLesson: config.skipOralLesson,
+      },
+      { signal: ctx.signal, logger: ctx.logger },
+    );
+
+    return scan.lessons.filter((lesson) => {
+      const local = runState.lessons[lesson.scoid];
+      const wasDone = local?.status === 'done' || local?.status === 'partial';
+      if (!wasDone) return false;
+      if (lesson.complete) return false;
+      return (attempts.get(lesson.scoid) ?? 0) < 2;
+    });
+  } catch (err) {
+    const appErr = toAppError(err);
+    if (appErr.code === 'INTERRUPTED' || appErr.code === 'AUTH_EXPIRED') throw appErr;
+    ctx.logger.warn(`复检失败（${appErr.code}），跳过本次校验继续执行`);
+    return [];
+  }
+}
+
 function logResult(ctx: CliContext, result: LessonResult): void {
   const stat = `题 ${result.stats.answered}/${result.stats.questions}  用时 ${result.waitSec}s  心跳 ${result.heartbeats} 次`;
   switch (result.status) {
@@ -304,9 +417,4 @@ function summarize(results: LessonResult[]) {
 
 function shortLocation(lesson: Lesson): string {
   return lesson.location.replace(/^Unit \d+\s*>\s*/i, '');
-}
-
-/** 保留给上层统一处理：命令行没给 --course 时给出可读错误 */
-export function assertCourse(course: string | undefined): asserts course is string {
-  if (!course) throw new ConfigError('缺少 --course <cid>');
 }

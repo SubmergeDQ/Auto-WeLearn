@@ -8,12 +8,12 @@ WE Learn 平台的命令行自动化工具（Node.js / TypeScript 重写版）�
 
 ## 当前状态
 
-批次 B（M0–M5）已交付：**登录 / 扫描 / 解析 / 等待保活 / 真实提交** 全链路可用。
+全部里程碑（M0–M7）已交付：**登录 / 扫描 / 解析 / 等待保活 / 真实提交 / 断点续跑 / 报告** 全链路可用。
 
-- 已在真实账号上验证单节提交：`startsco → 心跳 ×2 → setscoinfo → savescoinfo` 全部 `ret:0`，
-  提交后平台立即显示该节已完成、CMI 中正确率与答题记录完整。
-- 批次 C（M6 队列硬化 / M7 Playwright 登录）待做，详见
-  [`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F。
+- 已在真实账号上验证：单节提交 `startsco → 心跳 ×2 → setscoinfo → savescoinfo` 全部 `ret:0`，
+  提交后平台立即显示该节已完成，CMI 中正确率与答题记录完整。
+- 账号密码 SSO 登录**未实现**（依赖服务端 PKCE state，易失效），请用 Cookie 或 `--browser`。
+- 进度与实测结论见 [`docs/NODE_CLI_SPEC.md`](docs/NODE_CLI_SPEC.md) 附录 F / G。
 
 ## 环境要求
 
@@ -42,6 +42,9 @@ welearn-cli login --cookie-file ./cookies.txt
 
 # 方式三：环境变量
 WELEARN_COOKIE='...' welearn-cli login
+
+# 方式四：用本机 Chrome/Edge 登录（需要 npm i -D playwright-core）
+welearn-cli login --browser
 ```
 
 成功后会把会话缓存到 `~/.welearn-cli/session.json`（权限 0600），后续命令无需重复粘贴。
@@ -77,6 +80,11 @@ welearn-cli run --course 566 --unit 3 --wait 300-480 --rate 90-100
 
 每节流程：解析题目 → `startsco` → 等待（30–40s 心跳保活）→ `setscoinfo` → `savescoinfo`。
 Ctrl+C 可中断，当前节不会提交半截数据；加 `--resume` 下次跳过已完成小节。
+
+每处理 5 节（或满 10 分钟）会重新拉一次服务端状态：若某节本地记为完成但平台仍显示未完成，
+会自动重入队（每节最多 2 次）。
+
+> `--concurrency 2/3` 可用，但平台按单元顺序解锁，并发没有收益且更容易被判异常，默认保持串行。
 
 ## 命令参考
 
