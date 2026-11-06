@@ -101,7 +101,7 @@ async function dryRun(
       const prep = await prepareLesson(
         session,
         { cid: config.course, scoid: lesson.scoid, classid },
-        { signal: ctx.signal, logger: ctx.logger },
+        { signal: ctx.signal, logger: ctx.logger, skipOralQuestion: config.skipOralQuestion },
       );
       totalQuestions += prep.questions.length;
       totalOral += prep.oral;
@@ -192,6 +192,7 @@ async function liveRun(
         waitSec,
         retry: { max: ctx.config.retry.max, baseDelayMs: ctx.config.retry.baseDelayMs },
         cmiTime: config.cmiTime,
+        skipOralQuestion: config.skipOralQuestion,
         signal: ctx.signal,
         logger: ctx.logger,
       });

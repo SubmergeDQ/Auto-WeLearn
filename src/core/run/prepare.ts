@@ -20,7 +20,7 @@ export interface LessonPreparation {
 export async function prepareLesson(
   session: Session,
   params: { cid: string; scoid: string; classid?: string },
-  opts: { signal?: AbortSignal; logger?: Logger } = {},
+  opts: { signal?: AbortSignal; logger?: Logger; skipOralQuestion?: boolean } = {},
 ): Promise<LessonPreparation> {
   const address = await getScoAddr(
     session,
@@ -37,7 +37,7 @@ export async function prepareLesson(
     return { address, questions: [], oral: 0, strategy: 'none', warnings: ['TEMPLATE_FETCH_FAILED'] };
   }
 
-  const parsed = parseSco(html);
+  const parsed = parseSco(html, { skipOral: opts.skipOralQuestion ?? true });
   return {
     address,
     questions: parsed.questions,

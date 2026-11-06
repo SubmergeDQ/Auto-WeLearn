@@ -90,6 +90,35 @@ describe('legacy 解析（et-* 标签）', () => {
   });
 });
 
+describe('口语题跳过开关', () => {
+  const oralWithAnswer = `<div data-controltype="record" class="oral_record">
+      <span data-itemtype="stem">Read the sentence aloud.</span>
+      <div data-itemtype="result">Good morning</div>
+    </div>`;
+
+  const oralWithoutAnswer = `<div data-controltype="speak" class="oral_speak">
+      <span data-itemtype="stem">Say something.</span>
+    </div>`;
+
+  it('默认跳过：口语块不产出题目，只计入 oral', () => {
+    const result = parseSco(oralWithAnswer);
+    expect(result.questions).toHaveLength(0);
+    expect(result.oral).toBe(1);
+  });
+
+  it('skipOral=false 时尽力从块里捞答案并提交', () => {
+    const result = parseSco(oralWithAnswer, { skipOral: false });
+    expect(result.questions).toEqual([{ type: 'blank', answer: 'Good morning', tag: 'record' }]);
+    expect(result.oral).toBe(0);
+  });
+
+  it('skipOral=false 但块里没有答案时，仍然跳过而不是提交空值', () => {
+    const result = parseSco(oralWithoutAnswer, { skipOral: false });
+    expect(result.questions).toHaveLength(0);
+    expect(result.oral).toBe(1);
+  });
+});
+
 describe('空模板与异常输入', () => {
   it('空字符串 → none 策略且不抛错', () => {
     const r = parseSco('');

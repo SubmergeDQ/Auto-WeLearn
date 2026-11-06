@@ -28,6 +28,8 @@ export interface LessonRunParams {
   waitSec: number;
   retry: { max: number; baseDelayMs: number };
   cmiTime: 'session' | 'total';
+  /** 是否跳过口语/录音题，默认 true；false 表示尽力提交 */
+  skipOralQuestion?: boolean;
   signal?: AbortSignal;
   logger?: Logger;
 }
@@ -62,7 +64,11 @@ export async function runLesson(params: LessonRunParams, deps: LessonRunDeps = {
 
   try {
     // ── 1. 解析题目（失败退化为空 interactions，不阻断提交） ──
-    const prep = await prepareLesson(session, ctx, { signal, logger });
+    const prep = await prepareLesson(session, ctx, {
+      signal,
+      logger,
+      skipOralQuestion: params.skipOralQuestion ?? true,
+    });
     stats.questions = prep.questions.length;
     stats.oral = prep.oral;
     const bundle = generateInteractions(prep.questions, { crate: params.crate, random: deps.random });

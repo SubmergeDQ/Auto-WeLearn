@@ -177,7 +177,10 @@ function choiceAnswers($: CheerioAPI, block: Cheerio<Element>): string[] {
   return labels;
 }
 
-function parseCourseware($: CheerioAPI): { questions: Question[]; oral: number; warnings: string[] } {
+function parseCourseware(
+  $: CheerioAPI,
+  skipOral: boolean,
+): { questions: Question[]; oral: number; warnings: string[] } {
   const questions: Question[] = [];
   const warnings: string[] = [];
   let oral = 0;
@@ -185,22 +188,24 @@ function parseCourseware($: CheerioAPI): { questions: Question[]; oral: number; 
   $('[data-controltype]').each((_, el) => {
     const block = $(el);
     const rawType = (block.attr('data-controltype') ?? '').trim().toLowerCase();
+    const type = CONTROL_TYPE_MAP[rawType];
 
     // 口语题常常是自定义 controltype（如 record / speak），映射表里没有，
     // 所以先判断口语再判断题型，否则会被当成未知块直接跳过
-    if (looksOral(rawType)) {
-      oral++;
+    const isOral = looksOral(rawType) || (type !== undefined && looksOral(block.attr('class') ?? ''));
+
+    if (isOral) {
+      // --keep-oral-questions 时尽力从块里捞答案：有的录音题仍带 result 文本
+      const recovered = skipOral ? null : recoverOralAnswer($, block, type);
+      if (recovered) {
+        questions.push(recovered);
+      } else {
+        oral++;
+      }
       return;
     }
 
-    const type = CONTROL_TYPE_MAP[rawType];
     if (!type) return;
-
-    // 题型块内的口语标记（class="oral_record" 这类）
-    if (looksOral(block.attr('class') ?? '')) {
-      oral++;
-      return;
-    }
 
     if (type === 'blank') {
       const answer = blankAnswer(block);
@@ -230,8 +235,27 @@ function parseCourseware($: CheerioAPI): { questions: Question[]; oral: number; 
   return { questions, oral, warnings };
 }
 
-function isBinaryOptions($: CheerioAPI, block: Cheerio<Element>): boolean {
-  const options = block.find('li');
+/**
+ * `--keep-oral-questions` 时尽力从口语块里捞一个可提交的答案。
+ * 口语题大多没有文本答案，捞不到就仍然跳过（不给平台提交垃圾数据）。
+ */
+function recoverOralAnswer(
+  $: CheerioAPI,
+  block: Cheerio<Element>,
+  type: QuestionType | undefined,
+): Question | null {
+  const rawType = (block.attr('data-controltype') ?? '').trim().toLowerCase();
+
+  const blank = blankAnswer(block);
+  if (blank) return { type: 'blank', answer: blank, tag: rawType };
+
+  const labels = choiceAnswers($, block);
+  if (labels.length > 0) return { type: type ?? 'choice', answer: labels.join(','), tag: rawType };
+
+  return null;
+}
+
+function isBinaryOptions($: CheerioAPI, block: Cheerio<Element>): boolean {  const options = block.find('li');
   if (options.length !== 2) return false;
   return options.toArray().every((el) => {
     const t = clean($(el).text()).toUpperCase();
@@ -287,13 +311,22 @@ function parseLegacy($: CheerioAPI): { questions: Question[]; oral: number; warn
   return { questions, oral, warnings };
 }
 
-export function parseSco(html: string): ScoParseResult {
+export interface ParseOptions {
+  /**
+   * 是否跳过口语/录音题，默认 true。
+   * false 时尝试从口语块里捞可提交的答案（捞不到仍跳过）。
+   */
+  skipOral?: boolean;
+}
+
+export function parseSco(html: string, opts: ParseOptions = {}): ScoParseResult {
   if (!html || html.trim().length === 0) {
     return { questions: [], oral: 0, strategy: 'none', warnings: ['模板为空'] };
   }
 
+  const skipOral = opts.skipOral ?? true;
   const $ = load(html);
-  const courseware = parseCourseware($);
+  const courseware = parseCourseware($, skipOral);
   const legacy = parseLegacy($);
 
   const preferCourseware = courseware.questions.length >= legacy.questions.length;
