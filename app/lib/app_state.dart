@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/api.dart';
+import 'core/browser_login.dart';
 import 'core/errors.dart';
 import 'core/models.dart';
 import 'core/runner.dart';
@@ -126,6 +127,15 @@ class AppState extends ChangeNotifier {
   int currentElapsed = 0;
   int currentWait = 0;
   int currentHeartbeats = 0;
+
+  /// 节间间隔：总秒数与已过秒数。间隔期间 currentScoid 仍是上一节，
+  /// 界面改显示这个倒计时，而不是上一节归零后的 0:00。
+  int gapTotal = 0;
+  int gapElapsed = 0;
+
+  bool get inGap => running && gapTotal > 0;
+  int get gapRemain => (gapTotal - gapElapsed).clamp(0, gapTotal);
+
   DateTime? runStartedAt;
   DateTime? runFinishedAt;
 
@@ -264,9 +274,11 @@ class AppState extends ChangeNotifier {
     return (runDone / runTotal).clamp(0.0, 1.0);
   }
 
-  /// 当前节处于哪个阶段：在跑但还没开始计时 = 准备；计时中未到点 = 等待
+  /// 当前节处于哪个阶段：在跑但还没开始计时 = 准备；计时中未到点 = 等待；
+  /// 两节之间的间隔单独成阶段，避免界面显示上一节的 0:00。
   String get currentStage {
     if (!running) return 'idle';
+    if (inGap) return '间隔';
     if (currentWait == 0) return '准备';
     if (currentElapsed >= currentWait) return '提交';
     return '等待';
@@ -292,7 +304,8 @@ class AppState extends ChangeNotifier {
 
   void addLog(String level, String message) {
     logs.add(LogEntry(level, message));
-    if (logs.length > 400) logs.removeRange(0, logs.length - 400);
+    // 保留最近 2000 条：长挂机（75 节 × 多条心跳）不会再让早期日志整段消失
+    if (logs.length > 2000) logs.removeRange(0, logs.length - 2000);
     notifyListeners();
   }
 
@@ -505,22 +518,6 @@ class AppState extends ChangeNotifier {
   Future<void> commitRailWidth() => _persist();
 
   // ── 更新 ─────────────────────────────────────────────
-  /// 修改更新源。只接受 GitHub 仓库链接，统一存成完整 URL。
-  Future<bool> setRepoUrl(String value) async {
-    final slug = parseRepoSlug(value);
-    if (slug == null) {
-      updateError = '仓库链接格式不正确，示例：$defaultRepoUrl';
-      notifyListeners();
-      return false;
-    }
-    repoUrl = 'https://github.com/$slug';
-    latestRelease = null;
-    updateError = null;
-    notifyListeners();
-    await _persist();
-    return true;
-  }
-
   /// 检查 GitHub Releases 上的最新版本。
   ///
   /// [silent] 为 true 时用于后台检查：失败不写错误提示，避免离线启动时
@@ -685,19 +682,24 @@ class AppState extends ChangeNotifier {
           ? null
           : lessons.where((l) => l.scoid == currentScoid).firstOrNull;
       final current = (runDone + 1).clamp(1, runTotal <= 0 ? 1 : runTotal);
-      final remain = currentWait <= 0
-          ? 0
-          : (currentWait - currentElapsed).clamp(0, currentWait);
+      final remain = inGap
+          ? gapRemain
+          : (currentWait <= 0
+              ? 0
+              : (currentWait - currentElapsed).clamp(0, currentWait));
       unawaited(
         MobileBackground.updateTask(
           running: true,
           current: current,
           total: runTotal,
-          text: lesson == null
-              ? '正在运行'
-              : '第 $current/$runTotal 节 · ${shortLocation(lesson)}',
-          detail:
-              '$currentStage · 本节剩余 ${_mmss(remain)} · 心跳 $currentHeartbeats 次',
+          text: inGap
+              ? '第 $current/$runTotal 节 · 等待进入下一节'
+              : (lesson == null
+                  ? '正在运行'
+                  : '第 $current/$runTotal 节 · ${shortLocation(lesson)}'),
+          detail: inGap
+              ? '间隔 ${_mmss(gapRemain)} 后继续'
+              : '$currentStage · 本节剩余 ${_mmss(remain)} · 心跳 $currentHeartbeats 次',
         ),
       );
     } else {
@@ -841,6 +843,8 @@ class AppState extends ChangeNotifier {
     currentElapsed = 0;
     currentWait = 0;
     currentHeartbeats = 0;
+    gapTotal = 0;
+    gapElapsed = 0;
     recentResults.clear();
     runTotal = 0;
     runDone = 0;
@@ -855,6 +859,8 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     _stopSessionRun();
     _session.clearCookies();
+    // 顺带清掉内置浏览器里的会话，避免下次打开登录页时又被旧 Cookie 自动带走
+    await clearBrowserSession();
     final id = activeAccountId;
     if (id != null) {
       accounts = accounts.where((a) => a.id != id).toList();
@@ -871,10 +877,13 @@ class AppState extends ChangeNotifier {
   Future<void> forceClearCredentials() async {
     _stopSessionRun();
     _session.clearCookies();
+    // 内置浏览器的 Cookie / 缓存 / 本地存储一起清，登录态失效后残留的
+    // WebView 会话会让内置浏览器一打开就自动跳回学生主页。
+    await clearBrowserSession();
     accounts = const [];
     activeAccountId = null;
     _resetSessionView();
-    addLog('warn', '已强制清除本机会话凭据');
+    addLog('warn', '已强制清除本机会话凭据与内置浏览器数据');
     notifyListeners();
     await _persist();
   }
@@ -1047,10 +1056,28 @@ class AppState extends ChangeNotifier {
             settings.intervalMax,
             rng,
           );
-          await sleepInterruptible(
-            Duration(milliseconds: (gap * 1000).round()),
-            token,
-          );
+          // 逐秒计时，让运行卡在间隔阶段显示「距离下一节 mm:ss」，
+          // 而不是停留在上一节已经归零的倒计时上。
+          gapTotal = gap.round();
+          gapElapsed = 0;
+          if (gapTotal > 0) {
+            addLog('info', '间隔 ${gapTotal}s 后进入下一节');
+            notifyListeners();
+            _pushMobileTask(force: true);
+            while (gapElapsed < gapTotal) {
+              await sleepInterruptible(
+                const Duration(seconds: 1),
+                token,
+                step: const Duration(milliseconds: 250),
+              );
+              gapElapsed++;
+              notifyListeners();
+              _pushMobileTask();
+            }
+          }
+          gapTotal = 0;
+          gapElapsed = 0;
+          notifyListeners();
         }
       }
     } on AppException catch (e) {
@@ -1061,6 +1088,8 @@ class AppState extends ChangeNotifier {
       running = false;
       currentScoid = null;
       currentElapsed = 0;
+      gapTotal = 0;
+      gapElapsed = 0;
       runFinishedAt = DateTime.now();
       _token = null;
       notifyListeners();

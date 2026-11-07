@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 /// 当前应用版本。与 pubspec.yaml 的 version 保持一致。
-const String appVersion = '1.1.2';
+const String appVersion = '1.1.3';
 
 /// 默认更新源。用户可在设置里改成任意公开 GitHub 仓库链接。
 const String defaultRepoUrl = 'https://github.com/SubmergeDQ/Auto-WeLearn';
@@ -149,21 +150,24 @@ class UpdateService {
       throw UpdateException('GitHub 仓库链接格式不正确，示例：$defaultRepoUrl');
     }
 
-    final request = await _client.getUrl(
-      Uri.parse('$_apiHost/repos/$slug/releases/latest'),
-    );
-    request.headers
-      ..set(HttpHeaders.acceptHeader, 'application/vnd.github+json')
-      ..set(HttpHeaders.userAgentHeader, 'WeLearn-Assistant/$appVersion');
-
-    final response = await request.close().timeout(const Duration(seconds: 20));
-    final body = await response.transform(utf8.decoder).join();
+    final uri = Uri.parse('$_apiHost/repos/$slug/releases/latest');
+    final HttpClientResponse response;
+    final String body;
+    try {
+      final result = await _requestWithRetry(uri);
+      response = result.$1;
+      body = result.$2;
+    } on UpdateException {
+      rethrow;
+    } catch (e) {
+      throw UpdateException(_networkMessage(e));
+    }
 
     if (response.statusCode == 404) {
       throw UpdateException('仓库还没有发布 Release（$slug）');
     }
-    if (response.statusCode == 403) {
-      throw UpdateException('GitHub API 请求过于频繁，请稍后再试');
+    if (response.statusCode == 403 || response.statusCode == 429) {
+      throw UpdateException(_rateLimitMessage(response));
     }
     if (response.statusCode != 200) {
       throw UpdateException('GitHub 返回 HTTP ${response.statusCode}');
@@ -204,6 +208,65 @@ class UpdateService {
     );
   }
 
+  /// 请求 GitHub API：TLS 握手中断、连接重置这类瞬时故障自动重试一次。
+  Future<(HttpClientResponse, String)> _requestWithRetry(Uri uri) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final request = await _client.getUrl(uri);
+        request.headers
+          ..set(HttpHeaders.acceptHeader, 'application/vnd.github+json')
+          ..set(HttpHeaders.userAgentHeader, 'WeLearn-Assistant/$appVersion');
+        final response = await request.close().timeout(
+          const Duration(seconds: 20),
+        );
+        final body = await response.transform(utf8.decoder).join();
+        return (response, body);
+      } catch (e) {
+        lastError = e;
+        if (attempt == 0 && _isTransient(e)) {
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          continue;
+        }
+        throw UpdateException(_networkMessage(e));
+      }
+    }
+    throw UpdateException(_networkMessage(lastError ?? '未知网络错误'));
+  }
+
+  /// 握手失败、连接被重置、超时都属于网络抖动，值得再试一次。
+  bool _isTransient(Object error) =>
+      error is HandshakeException ||
+      error is SocketException ||
+      error is TimeoutException ||
+      error is HttpException;
+
+  String _networkMessage(Object error) {
+    if (error is HandshakeException) {
+      return '与 GitHub 建立安全连接失败（TLS 握手被中断），请检查网络或代理后重试';
+    }
+    if (error is SocketException) return '无法连接 GitHub，请检查网络后重试';
+    if (error is TimeoutException) return '连接 GitHub 超时，请稍后重试';
+    return '连接 GitHub 失败：$error';
+  }
+
+  /// 403 / 429 的统一文案；能读到配额重置时间就把重试时刻写清楚。
+  String _rateLimitMessage(HttpClientResponse response) {
+    final resetSeconds = int.tryParse(
+      response.headers.value('x-ratelimit-reset') ?? '',
+    );
+    if (resetSeconds != null && resetSeconds > 0) {
+      final at = DateTime.fromMillisecondsSinceEpoch(
+        resetSeconds * 1000,
+        isUtc: true,
+      ).toLocal();
+      final hh = at.hour.toString().padLeft(2, '0');
+      final mm = at.minute.toString().padLeft(2, '0');
+      return 'GitHub API 请求次数已达上限，$hh:$mm 后可重试';
+    }
+    return 'GitHub API 请求过于频繁，请稍后再试';
+  }
+
   /// 下载更新包到系统临时目录，同名文件已完整下载时直接复用。
   Future<File> downloadAsset(
     ReleaseAsset asset, {
@@ -222,12 +285,17 @@ class UpdateService {
       return file;
     }
 
-    final request = await _client.getUrl(Uri.parse(asset.downloadUrl));
-    request.headers.set(
-      HttpHeaders.userAgentHeader,
-      'WeLearn-Assistant/$appVersion',
-    );
-    final response = await request.close();
+    final HttpClientResponse response;
+    try {
+      final request = await _client.getUrl(Uri.parse(asset.downloadUrl));
+      request.headers.set(
+        HttpHeaders.userAgentHeader,
+        'WeLearn-Assistant/$appVersion',
+      );
+      response = await request.close().timeout(const Duration(seconds: 60));
+    } catch (e) {
+      throw UpdateException(_networkMessage(e));
+    }
     if (response.statusCode != 200) {
       throw UpdateException('下载更新包失败（HTTP ${response.statusCode}）');
     }

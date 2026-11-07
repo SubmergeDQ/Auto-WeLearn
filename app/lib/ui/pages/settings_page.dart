@@ -879,62 +879,6 @@ class _AboutGroup extends StatelessWidget {
     }
   }
 
-  Future<void> _editRepo(BuildContext context) async {
-    final controller = TextEditingController(text: state.repoUrl);
-    final value = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('GitHub 仓库链接'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '支持仓库主页链接或 owner/repo；应用会读取该仓库最新的 Release。',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: Tokens.textTertiary,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: defaultRepoUrl),
-                onSubmitted: (v) => Navigator.pop(dialogContext, v),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('保存并检查'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (value == null || !context.mounted) return;
-
-    final ok = await state.setRepoUrl(value);
-    if (!context.mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(state.updateError ?? '仓库链接格式不正确')));
-      return;
-    }
-    await state.checkForUpdate();
-  }
-
   @override
   Widget build(BuildContext context) {
     final release = state.latestRelease;
@@ -1016,20 +960,10 @@ class _AboutGroup extends StatelessWidget {
         SettingRow(
           title: 'GitHub 仓库',
           description: state.repoUrl,
-          trailing: Wrap(
-            spacing: 2,
-            children: [
-              TextButton(
-                style: toolbarText(),
-                onPressed: () => _openRepo(context, state.repoUrl),
-                child: const Text('打开'),
-              ),
-              TextButton(
-                style: toolbarText(),
-                onPressed: () => _editRepo(context),
-                child: const Text('修改'),
-              ),
-            ],
+          trailing: TextButton(
+            style: toolbarText(),
+            onPressed: () => _openRepo(context, state.repoUrl),
+            child: const Text('打开'),
           ),
         ),
         const Padding(

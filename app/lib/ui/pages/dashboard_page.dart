@@ -234,52 +234,54 @@ class _DashboardPageState extends State<DashboardPage> {
         SizedBox(height: compact ? 14 : 18),
         _Metrics(state: state, compact: compact),
         SizedBox(height: compact ? 12 : 16),
+        // 卡片顺序按要求固定：4 个指标 → 运行 → 最近完成 → 单元完整度 → 日志。
+        // 宽屏两两并排，但阅读顺序仍是从上到下、从左到右。
         if (wide && fill)
           Expanded(
             flex: 6,
             child: twoColumns(
               left: _RunCard(state: state, fill: fill),
-              right: _UnitsCard(
-                state: state,
-                onOpenUnit: widget.onOpenUnit,
-                fill: fill,
-              ),
+              right: _RecentCard(state: state, fill: fill),
               stretch: true,
             ),
           )
         else if (wide)
           twoColumns(
             left: _RunCard(state: state, fill: false),
-            right: _UnitsCard(
-              state: state,
-              onOpenUnit: widget.onOpenUnit,
-              fill: false,
-            ),
+            right: _RecentCard(state: state, fill: false),
             stretch: false,
           )
         else ...[
           _RunCard(state: state, fill: false),
           const SizedBox(height: 12),
-          _UnitsCard(state: state, onOpenUnit: widget.onOpenUnit, fill: false),
+          _RecentCard(state: state, fill: false),
         ],
         SizedBox(height: compact ? 12 : 16),
         if (wide && fill)
           Expanded(
             flex: 5,
             child: twoColumns(
-              left: _RecentCard(state: state, fill: fill),
+              left: _UnitsCard(
+                state: state,
+                onOpenUnit: widget.onOpenUnit,
+                fill: fill,
+              ),
               right: logCard,
               stretch: true,
             ),
           )
         else if (wide)
           twoColumns(
-            left: _RecentCard(state: state, fill: false),
+            left: _UnitsCard(
+              state: state,
+              onOpenUnit: widget.onOpenUnit,
+              fill: false,
+            ),
             right: logCard,
             stretch: false,
           )
         else ...[
-          _RecentCard(state: state, fill: false),
+          _UnitsCard(state: state, onOpenUnit: widget.onOpenUnit, fill: false),
           const SizedBox(height: 12),
           logCard,
         ],
@@ -467,18 +469,20 @@ class _RunCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  clockText(state.currentWait - state.currentElapsed),
+                  state.inGap
+                      ? clockText(state.gapRemain)
+                      : clockText(state.currentWait - state.currentElapsed),
                   style: monoStyle(
                     size: 46,
                     weight: FontWeight.w600,
                     color: Tokens.accent,
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 10, left: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10, left: 8),
                   child: Text(
-                    '剩余',
-                    style: TextStyle(
+                    state.inGap ? '后进入下一节' : '剩余',
+                    style: const TextStyle(
                       fontSize: 11.5,
                       color: Tokens.textTertiary,
                     ),
@@ -506,9 +510,13 @@ class _RunCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             ThinBar(
-              value: state.currentWait == 0
-                  ? 0
-                  : state.currentElapsed / state.currentWait,
+              value: state.inGap
+                  ? (state.gapTotal == 0
+                        ? 0
+                        : state.gapElapsed / state.gapTotal)
+                  : (state.currentWait == 0
+                        ? 0
+                        : state.currentElapsed / state.currentWait),
               height: 4,
             ),
             const SizedBox(height: 8),
@@ -516,13 +524,18 @@ class _RunCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                const Text(
-                  '本节用时',
-                  style: TextStyle(fontSize: 10.5, color: Tokens.textTertiary),
+                Text(
+                  state.inGap ? '间隔用时' : '本节用时',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.textTertiary,
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${clockText(state.currentElapsed)} / ${clockText(state.currentWait)}',
+                  state.inGap
+                      ? '${clockText(state.gapElapsed)} / ${clockText(state.gapTotal)}'
+                      : '${clockText(state.currentElapsed)} / ${clockText(state.currentWait)}',
                   style: monoStyle(size: 10.5, color: Tokens.textTertiary),
                 ),
               ],
@@ -782,25 +795,40 @@ class _RecentCard extends StatelessWidget {
           Padding(
             padding: EdgeInsets.symmetric(vertical: fill ? 7 : 5),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StatusDot(r.status, size: 7),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: StatusDot(r.status, size: 7),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    _nameOf(r.scoid),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _nameOf(r.scoid),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '${r.stat.answered}/${r.stat.questions} 题 · '
+                        '${relativeTimeText(r.finishedAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Tokens.textTertiary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '${r.stat.answered}/${r.stat.questions} 题',
-                  style: monoStyle(size: 10.5, color: Tokens.textTertiary),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 52,
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
                   child: Text(
                     '${r.waitSec}s',
                     textAlign: TextAlign.right,
@@ -869,8 +897,11 @@ class _LogCard extends StatelessWidget {
       if (filter == 'error') return l.level == 'error' || l.level == 'warn';
       return true;
     }).toList();
-    final visible = entries.length > 8
-        ? entries.sublist(entries.length - 8)
+    // 面板日志跟随卡片高度：宽屏拉满时显示 16 条，窄屏保持 8 条；
+    // 内存里则保留最近 2000 条，长挂机不会整段丢失。
+    final limit = fill ? 16 : 8;
+    final visible = entries.length > limit
+        ? entries.sublist(entries.length - limit)
         : entries;
 
     final lines = Column(

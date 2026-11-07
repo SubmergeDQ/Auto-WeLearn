@@ -8,6 +8,7 @@ import 'package:welearn_app/core/parser.dart';
 import 'package:welearn_app/core/scorm.dart';
 import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/ui/components.dart' show snapToStep;
+import 'package:welearn_app/ui/widgets.dart' show relativeTimeText;
 
 void main() {
   group('browser_login', () {
@@ -218,21 +219,70 @@ void main() {
   });
 
   group('等待滑条', () {
-    test('只吸附到偶数档位', () {
-      expect(snapToStep(301, min: 30, max: 900, step: 2), 302);
-      expect(snapToStep(303, min: 30, max: 900, step: 2), 304);
-      expect(snapToStep(299, min: 30, max: 900, step: 2), 300);
-      expect(snapToStep(30, min: 30, max: 900, step: 2), 30);
-      expect(snapToStep(900, min: 30, max: 900, step: 2), 900);
-      expect(snapToStep(5000, min: 30, max: 900, step: 2), 900);
+    test('吸附到 10 秒档位', () {
+      expect(snapToStep(301, min: 30, max: 900, step: 10), 300);
+      expect(snapToStep(305, min: 30, max: 900, step: 10), 310);
+      expect(snapToStep(299, min: 30, max: 900, step: 10), 300);
+      expect(snapToStep(30, min: 30, max: 900, step: 10), 30);
+      expect(snapToStep(900, min: 30, max: 900, step: 10), 900);
+      expect(snapToStep(5000, min: 30, max: 900, step: 10), 900);
     });
 
-    test('旧设置里的奇数等待时长归一化为偶数', () {
-      expect(normalizeWaitSeconds(301), 302);
+    test('旧设置里的等待时长归一化为 10 秒档', () {
+      expect(normalizeWaitSeconds(301), 300);
       expect(normalizeWaitSeconds(899), 900);
       expect(normalizeWaitSeconds(300), 300);
       expect(normalizeWaitSeconds(0), 30);
       expect(normalizeWaitSeconds(1200), 900);
+    });
+  });
+
+  group('口语题识别', () {
+    test('页面含录音控件时标记为口语页', () {
+      final parsed = parseSco(
+        '<html><body><div class="record-button">按住录音</div></body></html>',
+      );
+      expect(parsed.oralPage, isTrue);
+      expect(parsed.questions, isEmpty);
+    });
+
+    test('普通阅读页不会被误判为口语', () {
+      final parsed = parseSco(
+        '<html><body><div data-controltype="filling">'
+        '<input data-solution="hello"></div></body></html>',
+      );
+      expect(parsed.oralPage, isFalse);
+      expect(parsed.questions.length, 1);
+    });
+  });
+
+  group('最近完成时间', () {
+    test('相对时间在一天内用分钟 / 小时', () {
+      final now = DateTime(2026, 11, 7, 12, 30);
+      expect(
+        relativeTimeText(now.subtract(const Duration(seconds: 20)), now: now),
+        '刚刚',
+      );
+      expect(
+        relativeTimeText(now.subtract(const Duration(minutes: 5)), now: now),
+        '5 分钟前',
+      );
+      expect(
+        relativeTimeText(now.subtract(const Duration(hours: 3)), now: now),
+        '3 小时前',
+      );
+    });
+
+    test('超过一天显示具体时间，跨年带年份', () {
+      final now = DateTime(2026, 11, 7, 12, 30);
+      expect(
+        relativeTimeText(now.subtract(const Duration(days: 2)), now: now),
+        '11 月 5 日 12:30',
+      );
+      expect(
+        relativeTimeText(DateTime(2025, 12, 31, 20, 15), now: now),
+        '2025-12-31 20:15',
+      );
     });
   });
 

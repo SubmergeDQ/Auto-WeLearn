@@ -13,11 +13,16 @@ class ParseResult {
     required this.oral,
     required this.strategy,
     required this.warnings,
+    this.oralPage = false,
   });
   final List<Question> questions;
   final int oral;
   final String strategy;
   final List<String> warnings;
+
+  /// 页面级口语特征：录音控件、麦克风、语音评测脚本等。
+  /// 标题关键词没命中的口语小节，靠这个字段兜底识别。
+  final bool oralPage;
 }
 
 const _controlTypeMap = <String, QuestionType>{
@@ -76,6 +81,28 @@ bool _looksOral(String text) {
   return _oralKeywords.any(lower.contains);
 }
 
+/// 页面级口语特征。只放「一定和录音/语音」相关的标记，
+/// 不放泛化的 speaking/口语文案，避免把带口语提示的普通阅读课误判。
+const _oralPageMarkers = [
+  'mediarecorder',
+  'getusermedia',
+  'speechrecognition',
+  'webkitspeechrecognition',
+  'recordbutton',
+  'record-button',
+  'microphone',
+  '录音',
+  '麦克风',
+  '语音识别',
+  '语音评测',
+  '语音作答',
+];
+
+bool _looksOralPage(String html) {
+  final lower = html.toLowerCase();
+  return _oralPageMarkers.any(lower.contains);
+}
+
 String _clean(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 ParseResult parseSco(String html, {bool skipOral = true}) {
@@ -88,6 +115,7 @@ ParseResult parseSco(String html, {bool skipOral = true}) {
     );
   }
   final doc = html_parser.parse(html);
+  final oralPage = _looksOralPage(html);
   final courseware = _parseCourseware(doc, skipOral);
   final legacy = _parseLegacy(doc);
 
@@ -97,6 +125,7 @@ ParseResult parseSco(String html, {bool skipOral = true}) {
       oral: courseware.oral + legacy.oral,
       strategy: 'none',
       warnings: [...courseware.warnings, ...legacy.warnings],
+      oralPage: oralPage,
     );
   }
 
@@ -106,12 +135,14 @@ ParseResult parseSco(String html, {bool skipOral = true}) {
           oral: courseware.oral,
           strategy: 'courseware',
           warnings: courseware.warnings,
+          oralPage: oralPage,
         )
       : ParseResult(
           questions: legacy.questions,
           oral: legacy.oral,
           strategy: 'legacy',
           warnings: legacy.warnings,
+          oralPage: oralPage,
         );
 }
 

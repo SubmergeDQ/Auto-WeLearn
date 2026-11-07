@@ -497,7 +497,7 @@ String clockText(int seconds) {
 
 /// 把滑杆数值吸附到 [step] 的整数倍。
 ///
-/// 等待时长的滑杆只允许偶数（2 秒一档），避免滑到 301 秒这种没有意义的奇数。
+/// 等待时长的滑杆按 10 秒一档，避免滑到 313 秒这种没有意义的数字。
 int snapToStep(int value, {required int min, required int max, int step = 1}) {
   final clamped = value.clamp(min, max);
   if (step <= 1) return clamped;
@@ -508,7 +508,9 @@ int snapToStep(int value, {required int min, required int max, int step = 1}) {
 /// 区间滑杆：标签、当前值、双端滑块。
 ///
 /// 放在任务页的运行参数里——这些值以前藏在弹窗，改一次要点开两层。
-class RangeField extends StatelessWidget {
+/// 拖动期间用本地连续值渲染，松手后才吸附到 [step]：
+/// 否则受控回写会把滑块拽回档位，快速滑动时看起来"不跟手"。
+class RangeField extends StatefulWidget {
   const RangeField({
     super.key,
     required this.label,
@@ -537,26 +539,48 @@ class RangeField extends StatelessWidget {
   final bool enabled;
   final int? divisions;
 
-  /// 取值步长：滑杆只能落在 `min + k * step` 上。等待时长用 2 保证只出偶数。
+  /// 取值步长：滑杆只能落在 `min + k * step` 上。等待时长用 10 秒一档。
   final int step;
 
   @override
+  State<RangeField> createState() => _RangeFieldState();
+}
+
+class _RangeFieldState extends State<RangeField> {
+  /// 拖动中的原始值；为 null 时显示外部传入的吸附值
+  RangeValues? _drag;
+
+  (int, int) _snap(RangeValues v) => (
+    snapToStep(
+      v.start.round(),
+      min: widget.min.round(),
+      max: widget.max.round(),
+      step: widget.step,
+    ),
+    snapToStep(
+      v.end.round(),
+      min: widget.min.round(),
+      max: widget.max.round(),
+      step: widget.step,
+    ),
+  );
+
+  RangeValues _resting() {
+    final (a, b) = _snap(RangeValues(
+      widget.start.toDouble(),
+      widget.end.toDouble(),
+    ));
+    final lower = a.toDouble().clamp(widget.min, widget.max);
+    final upper = b.toDouble().clamp(widget.min, widget.max);
+    return lower <= upper ? RangeValues(lower, upper) : RangeValues(upper, lower);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final lower = snapToStep(
-      start,
-      min: min.round(),
-      max: max.round(),
-      step: step,
-    );
-    final upper = snapToStep(
-      end,
-      min: min.round(),
-      max: max.round(),
-      step: step,
-    );
-    final a = lower.toDouble().clamp(min, max);
-    final b = upper.toDouble().clamp(min, max);
-    final values = a <= b ? RangeValues(a, b) : RangeValues(b, a);
+    final values = _drag ?? _resting();
+    final enabled = widget.enabled;
+    // 拖动中显示吸附后的整数，滑块本身保持连续
+    final (shownStart, shownEnd) = _snap(values);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,7 +589,7 @@ class RangeField extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                label,
+                widget.label,
                 style: const TextStyle(
                   fontSize: 11.5,
                   color: Tokens.textSecondary,
@@ -573,7 +597,7 @@ class RangeField extends StatelessWidget {
               ),
             ),
             Text(
-              '${values.start.round()} – ${values.end.round()}$suffix',
+              '$shownStart – $shownEnd${widget.suffix}',
               style: monoStyle(
                 size: 11.5,
                 color: enabled ? Tokens.textPrimary : Tokens.textTertiary,
@@ -596,40 +620,27 @@ class RangeField extends StatelessWidget {
           ),
           child: RangeSlider(
             values: values,
-            min: min,
-            max: max,
-            divisions: divisions ?? ((max - min) / step).round(),
-            onChanged: enabled
-                ? (v) => onChanged(
-                    snapToStep(
-                      v.start.round(),
-                      min: min.round(),
-                      max: max.round(),
-                      step: step,
-                    ),
-                    snapToStep(
-                      v.end.round(),
-                      min: min.round(),
-                      max: max.round(),
-                      step: step,
-                    ),
-                  )
+            min: widget.min,
+            max: widget.max,
+            // 拖动时不提供 divisions，滑块才能连续跟随手指；
+            // 松手后再回到设定档位显示。
+            divisions: _drag == null
+                ? (widget.divisions ??
+                      ((widget.max - widget.min) / widget.step).round())
                 : null,
-            onChangeEnd: enabled && onChangeEnd != null
-                ? (v) => onChangeEnd!(
-                    snapToStep(
-                      v.start.round(),
-                      min: min.round(),
-                      max: max.round(),
-                      step: step,
-                    ),
-                    snapToStep(
-                      v.end.round(),
-                      min: min.round(),
-                      max: max.round(),
-                      step: step,
-                    ),
-                  )
+            onChanged: enabled
+                ? (v) {
+                    setState(() => _drag = v);
+                    final (a, b) = _snap(v);
+                    widget.onChanged(a, b);
+                  }
+                : null,
+            onChangeEnd: enabled && widget.onChangeEnd != null
+                ? (v) {
+                    final (a, b) = _snap(v);
+                    setState(() => _drag = null);
+                    widget.onChangeEnd!(a, b);
+                  }
                 : null,
           ),
         ),

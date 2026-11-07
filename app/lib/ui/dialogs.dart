@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_state.dart';
+import '../core/browser_login.dart';
 import '../theme.dart';
 import 'app_scope.dart';
 import 'login_web_page.dart';
@@ -703,6 +704,10 @@ Future<CloseDecision?> showCloseDialog(BuildContext context) async {
 /// 返回是否登录成功（用户取消返回 false）。
 Future<bool> openBrowserLogin(BuildContext context) async {
   final state = AppScope.of(context);
+  // 先清掉 WebView 里的旧会话：否则失效 Cookie 会让登录页直接跳到
+  // /student/，被误判为「已登录」并立刻关闭（用户感知就是内置浏览器闪退）。
+  await clearBrowserSession();
+  if (!context.mounted) return false;
   final cookie = await Navigator.of(context)
       .push<String>(MaterialPageRoute(builder: (_) => const LoginWebPage()));
   if (cookie == null || cookie.isEmpty) return false;

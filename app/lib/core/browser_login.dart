@@ -53,3 +53,26 @@ List<Cookie> relevantCookies(Iterable<Cookie> cookies) {
     return domain.contains('sflep.com');
   }).toList();
 }
+
+/// 清空内置浏览器留下的 Cookie、缓存与本地存储。
+///
+/// 登录态失效后旧 Cookie 仍留在 WebView 里：打开登录页时平台会直接跳到
+/// `/student/`，被误判成「已登录」并立刻关闭页面（表现为内置浏览器闪退）。
+/// 打开登录页前和强制清除凭据时都调用这里。
+Future<void> clearBrowserSession() async {
+  try {
+    await CookieManager.instance().deleteAllCookies();
+  } catch (_) {
+    // 桌面端 WebView2 的 Cookie 清理失败不影响账号 Cookie 已清空
+  }
+  try {
+    await WebStorageManager.instance().deleteAllData();
+  } catch (_) {
+    // 仅 Android / iOS 支持；Windows 忽略
+  }
+  try {
+    await InAppWebViewController.clearAllCache();
+  } catch (_) {
+    // 缓存清理失败不阻塞登录流程
+  }
+}

@@ -232,6 +232,23 @@ Future<LessonResult> runLesson({
           '等待 ${(waitSec ~/ 60).toString().padLeft(2, '0')}:${(waitSec % 60).toString().padLeft(2, '0')}',
     );
 
+    // 页面特征判为口语课且没有可提交题目：直接跳过，不做整节等待。
+    // 标题关键词没命中的口语小节靠这里兜底，不再白等 5–8 分钟。
+    if (settings.skipOralLesson &&
+        parsed.questions.isEmpty &&
+        (parsed.oral > 0 || parsed.oralPage)) {
+      onLog?.call('info', '识别为口语小节（页面含录音/语音特征），已跳过等待');
+      return LessonResult(
+        scoid: lesson.scoid,
+        status: LessonStatus.skipped,
+        crate: crate,
+        waitSec: 0,
+        heartbeats: 0,
+        stat: LessonStat(questions: 0, oral: parsed.oral, answered: 0),
+        finishedAt: DateTime.now(),
+      );
+    }
+
     if (!await api.startSco(meta, lesson.scoid)) {
       throw AppException(AppErrorCode.platformRejected, 'startsco 未被平台接受');
     }
@@ -245,6 +262,8 @@ Future<LessonResult> runLesson({
       onLog?.call('warn', 'CMI 读取失败，按 totalBefore=0 继续');
     }
 
+    // 两次心跳之间的增量：日志里前面写本次加了多少，后面写本节累计
+    var lastBeatAt = 0;
     final ka = await runKeepalive(
       api: api,
       meta: meta,
@@ -259,7 +278,9 @@ Future<LessonResult> runLesson({
       },
       onBeat: (ok, e) {
         if (ok) heartbeats++;
-        onLog?.call('beat', '+${e}s 心跳 ok（total=${totalBefore + e}s）');
+        final delta = e - lastBeatAt;
+        lastBeatAt = e;
+        onLog?.call('beat', '+${delta}s 心跳 ok（本节总计 ${totalBefore + e}s）');
       },
       onLog: (m) => onLog?.call('warn', m),
     );
@@ -305,6 +326,7 @@ Future<LessonResult> runLesson({
       errorCode: status == LessonStatus.failed
           ? AppErrorCode.platformRejected.code
           : null,
+      finishedAt: DateTime.now(),
     );
   } on AppException catch (e) {
     if (e.isInterrupted) {
@@ -315,6 +337,7 @@ Future<LessonResult> runLesson({
         waitSec: elapsed,
         heartbeats: heartbeats,
         stat: LessonStat.empty,
+        finishedAt: DateTime.now(),
       );
     }
     if (e.isAuthExpired) rethrow;
@@ -327,6 +350,7 @@ Future<LessonResult> runLesson({
       stat: LessonStat.empty,
       errorCode: e.code.code,
       errorMessage: e.message,
+      finishedAt: DateTime.now(),
     );
   }
 }

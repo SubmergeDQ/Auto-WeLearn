@@ -204,6 +204,32 @@ void main() {
     });
   });
 
+  testWidgets('任务页全部标签下可折叠单元', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      await tester.tap(find.byKey(const Key('nav-tasks')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Warm-up Activities: Matching'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('收起 Unit 3'));
+      await tester.pumpAndSettle();
+      expect(find.text('Warm-up Activities: Matching'), findsNothing);
+      // 折叠后组头仍在，统计数字不受影响
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is AppCheckbox && w.label == '全选 Unit 3',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('展开 Unit 3'));
+      await tester.pumpAndSettle();
+      expect(find.text('Warm-up Activities: Matching'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('设置页：关闭行为可切换并写回状态', (tester) async {
     await desktop(() async {
       final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());

@@ -43,3 +43,6 @@ app/android/app/.cxx/
 app/windows/flutter/ephemeral/
 app/**/generated_plugin_registrant.*
 app/**/generated_plugins.cmake
+
+# golden 对比失败时的临时图，只在本地排查用
+app/test/failures/

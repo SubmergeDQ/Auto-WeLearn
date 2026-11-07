@@ -24,6 +24,9 @@ class TasksPage extends StatefulWidget {
 class _TasksPageState extends State<TasksPage> {
   final _search = TextEditingController();
 
+  /// 「全部」标签下被折叠的单元编号
+  final Set<int> _collapsedUnits = <int>{};
+
   @override
   void dispose() {
     _search.dispose();
@@ -122,6 +125,12 @@ class _TasksPageState extends State<TasksPage> {
                             state: state,
                             entries: entries,
                             compact: compact,
+                            collapsedUnits: _collapsedUnits,
+                            onToggleUnit: (unitIndex) => setState(() {
+                              if (!_collapsedUnits.remove(unitIndex)) {
+                                _collapsedUnits.add(unitIndex);
+                              }
+                            }),
                           ),
                         ),
                       ),
@@ -167,11 +176,15 @@ class _TasksPageState extends State<TasksPage> {
       byUnit.putIfAbsent(l.unitIndex, () => []).add(l);
     }
 
+    // 只在「全部」筛选下允许折叠：选中单个单元时列表本来就只有一组
+    final collapsible = state.filter == 'all' && state.selectedUnit == null;
     final entries = <_Entry>[];
     for (final unit in state.units.where((u) => u.visible)) {
       final lessons = byUnit[unit.index];
       if (lessons == null || lessons.isEmpty) continue;
-      entries.add(_UnitEntry(unit, lessons));
+      final collapsed = collapsible && _collapsedUnits.contains(unit.index);
+      entries.add(_UnitEntry(unit, lessons, collapsed: collapsed));
+      if (collapsed) continue;
       for (var i = 0; i < lessons.length; i++) {
         entries.add(_LessonEntry(lessons[i], i + 1));
       }
@@ -246,9 +259,10 @@ sealed class _Entry {
 }
 
 class _UnitEntry extends _Entry {
-  const _UnitEntry(this.unit, this.lessons);
+  const _UnitEntry(this.unit, this.lessons, {this.collapsed = false});
   final CourseUnit unit;
   final List<Lesson> lessons;
+  final bool collapsed;
 }
 
 class _LessonEntry extends _Entry {
@@ -465,11 +479,15 @@ class _LessonList extends StatelessWidget {
     required this.state,
     required this.entries,
     required this.compact,
+    required this.collapsedUnits,
+    required this.onToggleUnit,
   });
 
   final AppState state;
   final List<_Entry> entries;
   final bool compact;
+  final Set<int> collapsedUnits;
+  final ValueChanged<int> onToggleUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -547,6 +565,9 @@ class _LessonList extends StatelessWidget {
                   state: state,
                   entry: entry,
                   compact: compact,
+                  onToggle: state.filter == 'all' && state.selectedUnit == null
+                      ? () => onToggleUnit(entry.unit.index)
+                      : null,
                 );
               }
               final lesson = (entry as _LessonEntry).lesson;
@@ -569,11 +590,15 @@ class _GroupHeader extends StatelessWidget {
     required this.state,
     required this.entry,
     required this.compact,
+    this.onToggle,
   });
 
   final AppState state;
   final _UnitEntry entry;
   final bool compact;
+
+  /// 非空时组头可折叠；「全部」标签之外不显示折叠按钮。
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -600,19 +625,32 @@ class _GroupHeader extends StatelessWidget {
             label: '全选 ${entry.unit.label}',
           ),
           Expanded(
-            child: Text(
-              entry.unit.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onToggle,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.unit.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${entry.lessons.length} 节 · 待处理 $pending',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: Tokens.textTertiary,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          Text(
-            '${entry.lessons.length} 节 · 待处理 $pending',
-            style: const TextStyle(fontSize: 10.5, color: Tokens.textTertiary),
           ),
           if (picked > 0) ...[
             const SizedBox(width: 10),
@@ -621,6 +659,21 @@ class _GroupHeader extends StatelessWidget {
               style: monoStyle(size: 10.5, color: Tokens.accent),
             ),
           ],
+          if (onToggle != null)
+            IconButton(
+              onPressed: onToggle,
+              tooltip: entry.collapsed ? '展开 ${entry.unit.label}' : '收起 ${entry.unit.label}',
+              iconSize: 16,
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: Icon(
+                entry.collapsed
+                    ? Icons.expand_more_rounded
+                    : Icons.expand_less_rounded,
+                color: Tokens.textTertiary,
+              ),
+            ),
         ],
       ),
     );
@@ -874,7 +927,7 @@ class _RunPanelState extends State<_RunPanel> {
           end: _draft.waitMax,
           suffix: ' 秒',
           enabled: !locked,
-          step: 2, // 只允许偶数：等待时长按 2 秒一档
+          step: 10, // 等待时长按 10 秒一档
           onChanged: (a, b) =>
               setState(() => _draft = _draft.copyWith(waitMin: a, waitMax: b)),
           onChangeEnd: (a, b) =>
@@ -919,7 +972,7 @@ class _RunPanelState extends State<_RunPanel> {
                   Text('跳过口语小节', style: TextStyle(fontSize: 12)),
                   SizedBox(height: 1),
                   Text(
-                    '按小节名识别，重新扫描后生效',
+                    '关键词 + 页面特征识别，命中后直接跳过不等待',
                     style: TextStyle(
                       fontSize: 10.5,
                       color: Tokens.textTertiary,

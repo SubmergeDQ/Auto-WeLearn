@@ -21,6 +21,7 @@ class LoginWebPage extends StatefulWidget {
 class _LoginWebPageState extends State<LoginWebPage> {
   InAppWebViewController? _controller;
   Timer? _poll;
+  final DateTime _openedAt = DateTime.now();
 
   bool _loading = true;
   bool _finishing = false;
@@ -43,6 +44,12 @@ class _LoginWebPageState extends State<LoginWebPage> {
     if (_finishing) return;
     final controller = _controller;
     if (controller == null) return;
+
+    // 页面刚打开时的初始跳转（尤其是平台自己把 /student/ 作为入口）
+    // 不代表登录成功；给它 2 秒缓冲，避免一打开就自动关闭。
+    if (DateTime.now().difference(_openedAt) < const Duration(seconds: 2)) {
+      return;
+    }
 
     final url = await controller.getUrl();
     if (url == null) return;

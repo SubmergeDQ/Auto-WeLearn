@@ -5,6 +5,26 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 import '../theme.dart';
 
+/// 完成时间的相对显示：1 分钟内「刚刚」，1 小时内「n 分钟前」，
+/// 24 小时内「n 小时前」，超过一天改为具体日期时间（跨年带年份）。
+String relativeTimeText(DateTime? time, {DateTime? now}) {
+  if (time == null) return '—';
+  final current = now ?? DateTime.now();
+  final diff = current.difference(time);
+  if (diff.isNegative || diff.inMinutes < 1) return '刚刚';
+  if (diff.inHours < 1) return '${diff.inMinutes} 分钟前';
+  if (diff.inHours < 24) return '${diff.inHours} 小时前';
+
+  final hh = time.hour.toString().padLeft(2, '0');
+  final mm = time.minute.toString().padLeft(2, '0');
+  if (time.year == current.year) {
+    return '${time.month} 月 ${time.day} 日 $hh:$mm';
+  }
+  final month = time.month.toString().padLeft(2, '0');
+  final day = time.day.toString().padLeft(2, '0');
+  return '${time.year}-$month-$day $hh:$mm';
+}
+
 /// 状态点：颜色 + 形状双编码，不只靠颜色
 class StatusDot extends StatelessWidget {
   const StatusDot(this.status, {super.key, this.size = 8});
