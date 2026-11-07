@@ -11,6 +11,7 @@ import 'core/errors.dart';
 import 'core/models.dart';
 import 'core/runner.dart';
 import 'core/session.dart';
+import 'core/updater.dart';
 import 'mobile_background.dart';
 
 const _defaultUserAgent =
@@ -143,6 +144,31 @@ class AppState extends ChangeNotifier {
   /// 手机端后台运行开关（桌面端不展示、不生效）
   bool keepAwake = true;
   bool persistentNotification = true;
+
+  /// 桌面侧边栏：宽度可拖拽，点击应用图标可收起成图标栏
+  double railWidth = 208;
+  bool railCollapsed = false;
+  static const minRailWidth = 176.0;
+  static const maxRailWidth = 320.0;
+
+  // ── 更新 ─────────────────────────────────────────────
+  /// 更新源仓库链接，可在设置里改成任意公开 GitHub 仓库
+  String repoUrl = defaultRepoUrl;
+  final UpdateService _updater = UpdateService();
+  ReleaseInfo? latestRelease;
+  bool checkingUpdate = false;
+  bool downloadingUpdate = false;
+  double updateProgress = 0;
+  String? updateError;
+
+  bool get hasUpdate {
+    final release = latestRelease;
+    if (release == null) return false;
+    return isNewerVersion(release.version, appVersion);
+  }
+
+  /// 通知栏进度推送的节流时间戳：每秒最多同步一次，避免逐 tick 打扰原生
+  DateTime _lastTaskPush = DateTime.fromMillisecondsSinceEpoch(0);
 
   SavedAccount? get activeAccount {
     final id = activeAccountId;
@@ -355,6 +381,12 @@ class AppState extends ChangeNotifier {
         keepAwake = data['keepAwake'] as bool? ?? true;
         persistentNotification =
             data['persistentNotification'] as bool? ?? true;
+        repoUrl = data['repoUrl'] as String? ?? defaultRepoUrl;
+        railWidth = ((data['railWidth'] as num?)?.toDouble() ?? 208).clamp(
+          minRailWidth,
+          maxRailWidth,
+        );
+        railCollapsed = data['railCollapsed'] as bool? ?? false;
         lastLoginAt = DateTime.tryParse('${data['lastLoginAt']}');
         final s = data['settings'];
         if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
@@ -394,6 +426,9 @@ class AppState extends ChangeNotifier {
           'closeAction': closeAction,
           'keepAwake': keepAwake,
           'persistentNotification': persistentNotification,
+          'repoUrl': repoUrl,
+          'railWidth': railWidth,
+          'railCollapsed': railCollapsed,
           if (lastLoginAt != null)
             'lastLoginAt': lastLoginAt!.toIso8601String(),
         }),
@@ -429,6 +464,225 @@ class AppState extends ChangeNotifier {
       keepAwake: this.keepAwake,
       persistent: persistentNotification,
     );
+  }
+
+  // ── 侧边栏 ───────────────────────────────────────────
+  /// 拖拽时只更新内存与界面，松手后再写盘（[commitRailWidth]）。
+  void setRailWidth(double value) {
+    final next = value.clamp(minRailWidth, maxRailWidth);
+    if (next == railWidth) return;
+    railWidth = next;
+    notifyListeners();
+  }
+
+  void toggleRailCollapsed() {
+    railCollapsed = !railCollapsed;
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  Future<void> commitRailWidth() => _persist();
+
+  // ── 更新 ─────────────────────────────────────────────
+  /// 修改更新源。只接受 GitHub 仓库链接，统一存成完整 URL。
+  Future<bool> setRepoUrl(String value) async {
+    final slug = parseRepoSlug(value);
+    if (slug == null) {
+      updateError = '仓库链接格式不正确，示例：$defaultRepoUrl';
+      notifyListeners();
+      return false;
+    }
+    repoUrl = 'https://github.com/$slug';
+    latestRelease = null;
+    updateError = null;
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  /// 检查 GitHub Releases 上的最新版本。
+  ///
+  /// [silent] 为 true 时用于启动后台检查：失败不写错误提示，避免离线启动时
+  /// 设置页一直挂着一条红色失败信息。
+  Future<void> checkForUpdate({bool silent = false}) async {
+    if (checkingUpdate) return;
+    checkingUpdate = true;
+    updateError = null;
+    notifyListeners();
+    try {
+      final release = await _updater.fetchLatest(repoUrl);
+      latestRelease = release;
+      if (!silent) {
+        addLog(
+          'info',
+          isNewerVersion(release.version, appVersion)
+              ? '发现新版本 ${release.version}（当前 $appVersion）'
+              : '已是最新版本 $appVersion',
+        );
+      }
+    } on UpdateException catch (e) {
+      if (!silent) {
+        updateError = e.message;
+        addLog('warn', '检查更新失败：${e.message}');
+      }
+    } catch (e) {
+      if (!silent) {
+        updateError = '检查更新失败：$e';
+        addLog('warn', updateError!);
+      }
+    } finally {
+      checkingUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  /// 下载当前平台对应的更新包，返回本地路径；失败时把原因写进 [updateError]。
+  Future<String?> downloadUpdate() async {
+    final release = latestRelease;
+    if (release == null) {
+      updateError = '还没有检查到可用版本，先点「检查更新」';
+      notifyListeners();
+      return null;
+    }
+    final target = Platform.isWindows
+        ? UpdateTarget.windows
+        : UpdateTarget.android;
+    final asset = selectUpdateAsset(release, target);
+    if (asset == null) {
+      updateError = Platform.isWindows
+          ? '这个 Release 里没有 Windows 安装包'
+          : '这个 Release 里没有 APK';
+      notifyListeners();
+      return null;
+    }
+
+    downloadingUpdate = true;
+    updateProgress = 0;
+    updateError = null;
+    notifyListeners();
+    try {
+      final file = await _updater.downloadAsset(
+        asset,
+        onProgress: (received, total) {
+          final next = total <= 0
+              ? 0.0
+              : (received / total).clamp(0.0, 1.0).toDouble();
+          // 每 1% 才刷新一次，避免整页随下载字节数反复重建
+          if (next >= 1.0 || next - updateProgress >= 0.01) {
+            updateProgress = next;
+            notifyListeners();
+          }
+        },
+      );
+      addLog('info', '更新包已下载：${file.path}');
+      return file.path;
+    } on UpdateException catch (e) {
+      updateError = e.message;
+      addLog('warn', '下载更新失败：${e.message}');
+      return null;
+    } catch (e) {
+      updateError = '下载更新失败：$e';
+      addLog('warn', updateError!);
+      return null;
+    } finally {
+      downloadingUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  /// 安装已下载的更新包。
+  ///
+  /// Windows：启动 NSIS 安装程序（安装版带 `/S` 静默安装），随后退出进程，
+  /// 让安装程序覆盖正在运行的 exe；Android：交给系统安装器。
+  Future<bool> installUpdate(String path) async {
+    if (Platform.isWindows) {
+      if (!path.toLowerCase().endsWith('.exe')) {
+        await Process.start('explorer.exe', [
+          '/select,',
+          path,
+        ], mode: ProcessStartMode.detached);
+        updateError = '已下载便携包，请在文件管理器中解压后覆盖安装目录';
+        notifyListeners();
+        return false;
+      }
+      await Process.start(path, ['/S'], mode: ProcessStartMode.detached);
+      addLog('info', '安装程序已启动，应用将在 1 秒内退出并完成更新');
+      notifyListeners();
+      await Future<void>.delayed(const Duration(seconds: 1));
+      exit(0);
+    }
+
+    if (Platform.isAndroid) {
+      final outcome = await MobileBackground.installApk(path);
+      switch (outcome) {
+        case ApkInstallOutcome.started:
+          addLog('info', '已打开系统安装器，按提示完成安装');
+          notifyListeners();
+          return true;
+        case ApkInstallOutcome.permissionRequired:
+          updateError = '请允许「安装未知应用」后再次点击安装';
+          addLog('warn', updateError!);
+          notifyListeners();
+          return false;
+        case ApkInstallOutcome.failed:
+          updateError = '无法启动系统安装器，请到文件管理器手动安装下载的 APK';
+          addLog('warn', updateError!);
+          notifyListeners();
+          return false;
+      }
+    }
+    return false;
+  }
+
+  /// 把当前运行进度同步到安卓常驻通知（桌面端直接返回）。
+  void _pushMobileTask({bool force = false}) {
+    if (!MobileBackground.supported) return;
+    if (running) {
+      if (!force &&
+          DateTime.now().difference(_lastTaskPush) <
+              const Duration(seconds: 1)) {
+        return;
+      }
+      _lastTaskPush = DateTime.now();
+      final lesson = currentScoid == null
+          ? null
+          : lessons.where((l) => l.scoid == currentScoid).firstOrNull;
+      final current = (runDone + 1).clamp(1, runTotal <= 0 ? 1 : runTotal);
+      final remain = currentWait <= 0
+          ? 0
+          : (currentWait - currentElapsed).clamp(0, currentWait);
+      unawaited(
+        MobileBackground.updateTask(
+          running: true,
+          current: current,
+          total: runTotal,
+          text: lesson == null
+              ? '正在运行'
+              : '第 $current/$runTotal 节 · ${shortLocation(lesson)}',
+          detail:
+              '$currentStage · 本节剩余 ${_mmss(remain)} · 心跳 $currentHeartbeats 次',
+        ),
+      );
+    } else {
+      _lastTaskPush = DateTime.fromMillisecondsSinceEpoch(0);
+      unawaited(
+        MobileBackground.updateTask(
+          running: false,
+          current: runDone,
+          total: runTotal,
+          text: runTotal > 0 ? '上次运行 $runDone/$runTotal 节' : '任务未运行',
+          detail: '点通知里的「开始」运行任务页已选小节',
+        ),
+      );
+    }
+  }
+
+  /// 秒数 → `mm:ss`（通知栏用，不依赖界面层的格式化函数）
+  String _mmss(int seconds) {
+    final total = seconds < 0 ? 0 : seconds;
+    final m = total ~/ 60;
+    final s = total % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   /// 重新拉一次账号头像。网络失败时静默回退到文字占位，不影响登录态。
@@ -676,6 +930,7 @@ class AppState extends ChangeNotifier {
       'info',
       only == null ? '开始运行 ${queue.length} 节' : '只运行本节：${shortLocation(only)}',
     );
+    _pushMobileTask(force: true);
     unawaited(_loop(m, queue));
   }
 
@@ -697,6 +952,7 @@ class AppState extends ChangeNotifier {
           '[${i + 1}/${queue.length}] ${shortLocation(lesson)}  rate=$crate%',
         );
         notifyListeners();
+        _pushMobileTask(force: true);
 
         final result = await runLesson(
           api: _api,
@@ -712,6 +968,7 @@ class AppState extends ChangeNotifier {
             currentElapsed = elapsed;
             currentHeartbeats = beats;
             notifyListeners();
+            _pushMobileTask();
           },
         );
 
@@ -760,6 +1017,7 @@ class AppState extends ChangeNotifier {
       runFinishedAt = DateTime.now();
       _token = null;
       notifyListeners();
+      _pushMobileTask(force: true);
       addLog('info', '本次运行结束');
     }
   }

@@ -207,6 +207,14 @@ class CourseMeta {
   final String classid;
 }
 
+/// 等待时长只允许偶数（滑条 2 秒一档）。
+/// 旧版本可能保存奇数，读取时归一化到最近的偶数，避免界面显示与运行值不一致。
+int normalizeWaitSeconds(int value) {
+  final clamped = value < 30 ? 30 : (value > 900 ? 900 : value);
+  if (clamped.isEven) return clamped;
+  return clamped >= 900 ? 900 : clamped + 1;
+}
+
 /// 运行参数（GUI 里由设置面板产出）
 class RunSettings {
   const RunSettings({
@@ -261,8 +269,8 @@ class RunSettings {
   };
 
   static RunSettings fromJson(Map<String, dynamic> json) => RunSettings(
-    waitMin: (json['waitMin'] as num?)?.toInt() ?? 300,
-    waitMax: (json['waitMax'] as num?)?.toInt() ?? 480,
+    waitMin: normalizeWaitSeconds((json['waitMin'] as num?)?.toInt() ?? 300),
+    waitMax: normalizeWaitSeconds((json['waitMax'] as num?)?.toInt() ?? 480),
     rateMin: (json['rateMin'] as num?)?.toInt() ?? 90,
     rateMax: (json['rateMax'] as num?)?.toInt() ?? 100,
     intervalMin: (json['intervalMin'] as num?)?.toInt() ?? 3,

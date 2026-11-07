@@ -495,6 +495,16 @@ String clockText(int seconds) {
   return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
 }
 
+/// 把滑杆数值吸附到 [step] 的整数倍。
+///
+/// 等待时长的滑杆只允许偶数（2 秒一档），避免滑到 301 秒这种没有意义的奇数。
+int snapToStep(int value, {required int min, required int max, int step = 1}) {
+  final clamped = value.clamp(min, max);
+  if (step <= 1) return clamped;
+  final snapped = ((clamped - min) / step).round() * step + min;
+  return snapped.clamp(min, max);
+}
+
 /// 区间滑杆：标签、当前值、双端滑块。
 ///
 /// 放在任务页的运行参数里——这些值以前藏在弹窗，改一次要点开两层。
@@ -511,6 +521,7 @@ class RangeField extends StatelessWidget {
     this.suffix = '',
     this.enabled = true,
     this.divisions,
+    this.step = 1,
   });
 
   final String label;
@@ -526,10 +537,25 @@ class RangeField extends StatelessWidget {
   final bool enabled;
   final int? divisions;
 
+  /// 取值步长：滑杆只能落在 `min + k * step` 上。等待时长用 2 保证只出偶数。
+  final int step;
+
   @override
   Widget build(BuildContext context) {
-    final a = start.toDouble().clamp(min, max);
-    final b = end.toDouble().clamp(min, max);
+    final lower = snapToStep(
+      start,
+      min: min.round(),
+      max: max.round(),
+      step: step,
+    );
+    final upper = snapToStep(
+      end,
+      min: min.round(),
+      max: max.round(),
+      step: step,
+    );
+    final a = lower.toDouble().clamp(min, max);
+    final b = upper.toDouble().clamp(min, max);
     final values = a <= b ? RangeValues(a, b) : RangeValues(b, a);
 
     return Column(
@@ -572,12 +598,38 @@ class RangeField extends StatelessWidget {
             values: values,
             min: min,
             max: max,
-            divisions: divisions ?? (max - min).round(),
+            divisions: divisions ?? ((max - min) / step).round(),
             onChanged: enabled
-                ? (v) => onChanged(v.start.round(), v.end.round())
+                ? (v) => onChanged(
+                    snapToStep(
+                      v.start.round(),
+                      min: min.round(),
+                      max: max.round(),
+                      step: step,
+                    ),
+                    snapToStep(
+                      v.end.round(),
+                      min: min.round(),
+                      max: max.round(),
+                      step: step,
+                    ),
+                  )
                 : null,
             onChangeEnd: enabled && onChangeEnd != null
-                ? (v) => onChangeEnd!(v.start.round(), v.end.round())
+                ? (v) => onChangeEnd!(
+                    snapToStep(
+                      v.start.round(),
+                      min: min.round(),
+                      max: max.round(),
+                      step: step,
+                    ),
+                    snapToStep(
+                      v.end.round(),
+                      min: min.round(),
+                      max: max.round(),
+                      step: step,
+                    ),
+                  )
                 : null,
           ),
         ),

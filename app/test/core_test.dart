@@ -6,6 +6,8 @@ import 'package:welearn_app/core/browser_login.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/parser.dart';
 import 'package:welearn_app/core/scorm.dart';
+import 'package:welearn_app/core/updater.dart';
+import 'package:welearn_app/ui/components.dart' show snapToStep;
 
 void main() {
   group('browser_login', () {
@@ -146,6 +148,91 @@ void main() {
         isTrue,
       );
       expect(json, contains('"total_time":"180"'));
+    });
+  });
+
+  group('更新检查', () {
+    test('仓库链接解析成 owner/repo', () {
+      expect(
+        parseRepoSlug('https://github.com/SubmergeDQ/Auto-WeLearn'),
+        'SubmergeDQ/Auto-WeLearn',
+      );
+      expect(
+        parseRepoSlug('github.com/SubmergeDQ/Auto-WeLearn/releases'),
+        'SubmergeDQ/Auto-WeLearn',
+      );
+      expect(
+        parseRepoSlug('https://github.com/SubmergeDQ/Auto-WeLearn.git'),
+        'SubmergeDQ/Auto-WeLearn',
+      );
+      expect(
+        parseRepoSlug('SubmergeDQ/Auto-WeLearn'),
+        'SubmergeDQ/Auto-WeLearn',
+      );
+      expect(parseRepoSlug('https://gitee.com/a/b'), isNull);
+      expect(parseRepoSlug('not a link'), isNull);
+      expect(parseRepoSlug(''), isNull);
+    });
+
+    test('版本比较：带 v 前缀与不同段数', () {
+      expect(compareVersions('v1.1.0', '1.0.2'), 1);
+      expect(compareVersions('1.0.2', 'v1.1.0'), -1);
+      expect(compareVersions('1.1.0', '1.1'), 0);
+      expect(isNewerVersion('1.1.0', '1.0.2'), isTrue);
+      expect(isNewerVersion('1.0.2', '1.1.0'), isFalse);
+    });
+
+    test('按平台挑选更新包', () {
+      const release = ReleaseInfo(
+        version: '1.1.0',
+        tagName: 'v1.1.0',
+        notes: '',
+        htmlUrl: '',
+        assets: [
+          ReleaseAsset(
+            name: 'WeLearn-1.1.0-portable.zip',
+            downloadUrl: 'https://example.com/a.zip',
+            size: 1,
+          ),
+          ReleaseAsset(
+            name: 'WeLearn-Setup-1.1.0.exe',
+            downloadUrl: 'https://example.com/a.exe',
+            size: 1,
+          ),
+          ReleaseAsset(
+            name: 'welearn-app-1.1.0.apk',
+            downloadUrl: 'https://example.com/a.apk',
+            size: 1,
+          ),
+        ],
+      );
+      expect(
+        selectUpdateAsset(release, UpdateTarget.windows)?.name,
+        'WeLearn-Setup-1.1.0.exe',
+      );
+      expect(
+        selectUpdateAsset(release, UpdateTarget.android)?.name,
+        'welearn-app-1.1.0.apk',
+      );
+    });
+  });
+
+  group('等待滑条', () {
+    test('只吸附到偶数档位', () {
+      expect(snapToStep(301, min: 30, max: 900, step: 2), 302);
+      expect(snapToStep(303, min: 30, max: 900, step: 2), 304);
+      expect(snapToStep(299, min: 30, max: 900, step: 2), 300);
+      expect(snapToStep(30, min: 30, max: 900, step: 2), 30);
+      expect(snapToStep(900, min: 30, max: 900, step: 2), 900);
+      expect(snapToStep(5000, min: 30, max: 900, step: 2), 900);
+    });
+
+    test('旧设置里的奇数等待时长归一化为偶数', () {
+      expect(normalizeWaitSeconds(301), 302);
+      expect(normalizeWaitSeconds(899), 900);
+      expect(normalizeWaitSeconds(300), 300);
+      expect(normalizeWaitSeconds(0), 30);
+      expect(normalizeWaitSeconds(1200), 900);
     });
   });
 

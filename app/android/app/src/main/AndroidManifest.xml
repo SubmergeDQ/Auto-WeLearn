@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 长任务后台续跑：引导用户把应用设为电池无限制 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- 应用内从 GitHub 下载 APK 后调起系统安装器 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="WeLearn 助手"
         android:name="${applicationName}"
@@ -37,6 +41,25 @@
             android:name=".BackgroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
+        <!-- 通知栏「开始 / 停止」按钮 -->
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.autowelearn.welearn.ACTION_START_TASK"/>
+                <action android:name="cn.autowelearn.welearn.ACTION_STOP_TASK"/>
+            </intent-filter>
+        </receiver>
+        <!-- 应用内更新：把 cache 目录里的 APK 以 content:// 交给系统安装器 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

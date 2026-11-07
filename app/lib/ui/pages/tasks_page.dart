@@ -872,6 +872,7 @@ class _RunPanelState extends State<_RunPanel> {
           end: _draft.waitMax,
           suffix: ' 秒',
           enabled: !locked,
+          step: 2, // 只允许偶数：等待时长按 2 秒一档
           onChanged: (a, b) =>
               setState(() => _draft = _draft.copyWith(waitMin: a, waitMax: b)),
           onChangeEnd: (a, b) =>

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:welearn_app/app_state.dart';
 import 'package:welearn_app/core/models.dart';
+import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/theme.dart';
 import 'package:welearn_app/ui/app_scope.dart';
 import 'package:welearn_app/ui/widgets.dart';
@@ -211,6 +212,59 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.closeAction, 'tray');
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('桌面点应用图标收起侧边栏，再点展开', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+
+      expect(find.text('WeLearn 助手 $appVersion'), findsOneWidget);
+      await tester.tap(find.byTooltip('点击收起侧边栏'));
+      await tester.pumpAndSettle();
+
+      expect(state.railCollapsed, isTrue);
+      expect(find.text('WeLearn 助手 $appVersion'), findsNothing);
+
+      await tester.tap(find.byTooltip('点击展开侧边栏'));
+      await tester.pumpAndSettle();
+
+      expect(state.railCollapsed, isFalse);
+      expect(find.text('WeLearn 助手 $appVersion'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  test('侧边栏宽度被限制在 176–320', () {
+    final state = AppState();
+    state.setRailWidth(100);
+    expect(state.railWidth, AppState.minRailWidth);
+    state.setRailWidth(400);
+    expect(state.railWidth, AppState.maxRailWidth);
+  });
+
+  testWidgets('设置页展示检查更新入口与仓库链接', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      state.latestRelease = const ReleaseInfo(
+        version: '9.9.9',
+        tagName: 'v9.9.9',
+        notes: '',
+        htmlUrl: 'https://github.com/SubmergeDQ/Auto-WeLearn/releases',
+        assets: [],
+      );
+      state.notifyListeners();
+      await tester.tap(find.byKey(const Key('nav-settings')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('检查更新'), findsWidgets);
+      expect(find.text('发现新版本 9.9.9，可一键更新'), findsOneWidget);
+      expect(find.text('下载并自动安装'), findsOneWidget);
+      expect(
+        find.text('https://github.com/SubmergeDQ/Auto-WeLearn'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
   });

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_state.dart';
+import '../../core/updater.dart';
 import '../../mobile_background.dart';
 import '../../theme.dart';
 import '../app_scope.dart';
@@ -16,11 +17,9 @@ import '../widgets.dart' show AccountAvatar, Caret;
 /// 只认 Android —— 本项目没有 iOS 构建，别在不支持的平台显示不可用的开关。
 bool get isMobilePlatform => defaultTargetPlatform == TargetPlatform.android;
 
-const String _repoUrl = 'https://github.com/SubmergeDQ/Auto-WeLearn';
-
-Future<void> _openRepo(BuildContext context) async {
+Future<void> _openRepo(BuildContext context, String url) async {
   final launched = await launchUrl(
-    Uri.parse(_repoUrl),
+    Uri.parse(url),
     mode: LaunchMode.externalApplication,
   );
   if (!launched && context.mounted) {
@@ -48,7 +47,7 @@ class SettingsPage extends StatelessWidget {
         ? const _MobileAppGroup()
         : _DesktopAppGroup(state: state, compact: compact);
     final data = _DataGroup(state: state);
-    const about = _AboutGroup();
+    final about = _AboutGroup(state: state);
     final status = _StatusCard(state: state);
     final lastRun = _LastRunCard(state: state);
 
@@ -422,14 +421,28 @@ class _MobileAppGroup extends StatefulWidget {
   State<_MobileAppGroup> createState() => _MobileAppGroupState();
 }
 
-class _MobileAppGroupState extends State<_MobileAppGroup> {
+class _MobileAppGroupState extends State<_MobileAppGroup>
+    with WidgetsBindingObserver {
   BackgroundPermission? _permission;
   bool _requesting = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refreshPermission();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 从系统设置页返回时刷新授权状态，不用重开应用
+    if (state == AppLifecycleState.resumed) _refreshPermission();
   }
 
   Future<void> _refreshPermission() async {
@@ -444,11 +457,31 @@ class _MobileAppGroupState extends State<_MobileAppGroup> {
     if (mounted) setState(() => _requesting = false);
   }
 
+  Future<void> _showPermissionGuide() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Tokens.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Tokens.radiusCard),
+        ),
+      ),
+      builder: (_) => const _PermissionGuideSheet(),
+    );
+    await _refreshPermission();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final granted = _permission?.notification;
-    final wakeLockGranted = _permission?.wakeLock;
+    final battery = _permission?.batteryUnrestricted;
+
+    final summary = _permission == null
+        ? '通知、电池与自启动都会影响息屏后的续跑'
+        : '通知${granted == true ? "已授予" : "未授予"} · '
+              '电池${battery == true ? "无限制" : "可能被优化"}';
 
     return SettingGroup(
       title: '应用',
@@ -464,7 +497,7 @@ class _MobileAppGroupState extends State<_MobileAppGroup> {
         ),
         SettingRow(
           title: '任务栏常驻',
-          description: '通知栏显示「后台运行中」，点通知可回到应用；相当于桌面端的托盘',
+          description: '通知栏显示任务进度与「开始 / 停止」按钮，点通知可回到应用；相当于桌面端的托盘',
           trailing: Switch(
             value: state.persistentNotification,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -473,23 +506,38 @@ class _MobileAppGroupState extends State<_MobileAppGroup> {
         ),
         SettingRow(
           title: '权限申请',
-          description: wakeLockGranted == false
-              ? 'Wake Lock 权限未授予，息屏续跑可能失效'
-              : (granted == null
-                    ? 'Wake Lock 安装时授予；Android 13+ 还要授权通知才能常驻'
-                    : (granted ? 'Wake Lock 与通知权限均已授予' : '通知权限未授予，常驻通知不会显示')),
+          description: summary,
           trailing: TextButton(
             style: toolbarText(),
-            onPressed: _requesting ? null : _requestPermission,
-            child: Text(
-              _requesting ? '申请中…' : (granted == true ? '重新检查' : '申请权限'),
-            ),
+            onPressed: _showPermissionGuide,
+            child: const Text('权限引导'),
+          ),
+          bottom: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                style: toolbarOutlined(),
+                onPressed: _requesting ? null : _requestPermission,
+                child: Text(
+                  _requesting ? '申请中…' : (granted == true ? '通知已开启' : '开启通知'),
+                ),
+              ),
+              OutlinedButton(
+                style: toolbarOutlined(),
+                onPressed: battery == true
+                    ? null
+                    : MobileBackground.requestIgnoreBatteryOptimizations,
+                child: Text(battery == true ? '电池无限制' : '设为电池无限制'),
+              ),
+            ],
           ),
         ),
         const Padding(
           padding: EdgeInsets.only(bottom: 10),
           child: Text(
-            '锁屏续跑依赖上面两项；长时间挂机还需要到系统设置里把本应用加入电池优化白名单。',
+            '锁屏续跑依赖通知权限与 Wake Lock；长时间挂机还需要电池无限制、允许自启动，'
+            '并在最近任务里锁定本应用。点「权限引导」按步骤设置。',
             style: TextStyle(
               fontSize: 10.5,
               color: Tokens.textTertiary,
@@ -498,6 +546,250 @@ class _MobileAppGroupState extends State<_MobileAppGroup> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 后台权限引导：通知、电池无限制、自启动、最近任务锁定，逐项给出入口。
+class _PermissionGuideSheet extends StatefulWidget {
+  const _PermissionGuideSheet();
+
+  @override
+  State<_PermissionGuideSheet> createState() => _PermissionGuideSheetState();
+}
+
+class _PermissionGuideSheetState extends State<_PermissionGuideSheet>
+    with WidgetsBindingObserver {
+  BackgroundPermission? _permission;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  Future<void> _load() async {
+    final value = await MobileBackground.status();
+    if (mounted) setState(() => _permission = value);
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    await action();
+    await _load();
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notification = _permission?.notification;
+    final battery = _permission?.batteryUnrestricted;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Tokens.borderStrong,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '后台运行权限引导',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '安卓系统会回收长时间后台的应用。下面四项建议全部设置，息屏挂机才不容易中断。',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Tokens.textTertiary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _GuideRow(
+                title: '1. 通知权限',
+                description: '任务栏常驻与进度显示依赖通知权限（Android 13+ 需要手动授权）',
+                status: notification == true ? '已授予' : '未授予',
+                ok: notification == true,
+                actionLabel: notification == true ? '重新申请' : '去授权',
+                onTap: _busy
+                    ? null
+                    : () => _run(
+                        () async =>
+                            MobileBackground.requestNotificationPermission(),
+                      ),
+              ),
+              const Divider(height: 1),
+              _GuideRow(
+                title: '2. 电池优化',
+                description: '把应用设为「无限制」，避免系统在息屏后冻结后台任务',
+                status: battery == true ? '无限制' : '受系统优化',
+                ok: battery == true,
+                actionLabel: battery == true ? '重新检查' : '设为无限制',
+                onTap: _busy
+                    ? null
+                    : () => _run(
+                        MobileBackground.requestIgnoreBatteryOptimizations,
+                      ),
+              ),
+              const Divider(height: 1),
+              _GuideRow(
+                title: '3. 自启动',
+                description: '部分厂商（小米 / 华为 / OPPO / vivo）需要允许应用自启动与后台活动',
+                status: '按厂商设置',
+                ok: false,
+                actionLabel: '打开自启动设置',
+                onTap: _busy
+                    ? null
+                    : () => _run(MobileBackground.openAutoStartSettings),
+              ),
+              const Divider(height: 1),
+              _GuideRow(
+                title: '4. 最近任务锁定',
+                description: '打开最近任务，把本应用卡片下拉（或点小锁图标）锁定，防止一键清理时被划掉',
+                status: '手动操作',
+                ok: false,
+                actionLabel: '打开应用详情',
+                onTap: _busy
+                    ? null
+                    : () => _run(MobileBackground.openAppSettings),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Tokens.accentSoft,
+                  borderRadius: BorderRadius.circular(Tokens.radiusControl),
+                ),
+                child: const Text(
+                  '设置完成后回到本页，状态会自动刷新。任务运行时通知栏会显示「第 n/总 节」、'
+                  '本节剩余时间，并提供开始 / 停止按钮。',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.textSecondary,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: Tokens.tapMin,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('完成'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideRow extends StatelessWidget {
+  const _GuideRow({
+    required this.title,
+    required this.description,
+    required this.status,
+    required this.ok,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final String status;
+  final bool ok;
+  final String actionLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ok ? Tokens.successSoft : Tokens.mutedSoft,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: ok ? Tokens.success : Tokens.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.textTertiary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            style: toolbarText(),
+            onPressed: onTap,
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -551,28 +843,193 @@ class _DataGroup extends StatelessWidget {
 }
 
 class _AboutGroup extends StatelessWidget {
-  const _AboutGroup();
+  const _AboutGroup({required this.state});
+
+  final AppState state;
+
+  String _status() {
+    if (state.checkingUpdate) return '正在检查 GitHub Releases…';
+    if (state.downloadingUpdate) {
+      return '正在下载更新包（${(state.updateProgress * 100).round()}%）';
+    }
+    final release = state.latestRelease;
+    if (release != null) {
+      return state.hasUpdate
+          ? '发现新版本 ${release.version}，可一键更新'
+          : '已是最新版本 $appVersion';
+    }
+    return '从 GitHub Releases 检查最新版本';
+  }
+
+  Future<void> _install(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final path = await state.downloadUpdate();
+    if (!context.mounted) return;
+    if (path == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(state.updateError ?? '下载更新失败')),
+      );
+      return;
+    }
+    await state.installUpdate(path);
+    if (!context.mounted) return;
+    final error = state.updateError;
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  Future<void> _editRepo(BuildContext context) async {
+    final controller = TextEditingController(text: state.repoUrl);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('GitHub 仓库链接'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '支持仓库主页链接或 owner/repo；应用会读取该仓库最新的 Release。',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Tokens.textTertiary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: defaultRepoUrl),
+                onSubmitted: (v) => Navigator.pop(dialogContext, v),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('保存并检查'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || !context.mounted) return;
+
+    final ok = await state.setRepoUrl(value);
+    if (!context.mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(state.updateError ?? '仓库链接格式不正确')));
+      return;
+    }
+    await state.checkForUpdate();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final release = state.latestRelease;
+
     return SettingGroup(
       title: '关于',
       children: [
-        const SettingRow(
+        SettingRow(
           title: 'WeLearn 助手',
-          description: '1.0.2 · Flutter 桌面 / 安卓双端',
+          description: '$appVersion · Flutter 桌面 / 安卓双端',
           trailing: Text(
-            '本地运行',
-            style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+            state.hasUpdate ? '可更新 ${release!.version}' : '本地运行',
+            style: TextStyle(
+              fontSize: 11,
+              color: state.hasUpdate ? Tokens.accent : Tokens.textTertiary,
+            ),
+          ),
+        ),
+        SettingRow(
+          title: '检查更新',
+          description: _status(),
+          trailing: TextButton(
+            style: toolbarText(),
+            onPressed: state.checkingUpdate || state.downloadingUpdate
+                ? null
+                : state.checkForUpdate,
+            child: Text(state.checkingUpdate ? '检查中…' : '检查更新'),
+          ),
+          bottom: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (state.downloadingUpdate) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: state.updateProgress > 0
+                        ? state.updateProgress
+                        : null,
+                    minHeight: 4,
+                    backgroundColor: Tokens.mutedSoft,
+                    valueColor: const AlwaysStoppedAnimation(Tokens.accent),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '正在下载 ${(state.updateProgress * 100).round()}%，完成后${isMobilePlatform ? '会打开系统安装器' : '会自动重启安装'}',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.textTertiary,
+                  ),
+                ),
+              ] else if (state.hasUpdate) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    style: toolbarFilled(),
+                    onPressed: () => _install(context),
+                    icon: const Icon(Icons.system_update_alt_rounded, size: 16),
+                    label: Text(isMobilePlatform ? '下载并安装 APK' : '下载并自动安装'),
+                  ),
+                ),
+              ],
+              if (state.updateError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  state.updateError!,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.danger,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         SettingRow(
           title: 'GitHub 仓库',
-          description: _repoUrl,
-          trailing: TextButton(
-            style: toolbarText(),
-            onPressed: () => _openRepo(context),
-            child: const Text('打开'),
+          description: state.repoUrl,
+          trailing: Wrap(
+            spacing: 2,
+            children: [
+              TextButton(
+                style: toolbarText(),
+                onPressed: () => _openRepo(context, state.repoUrl),
+                child: const Text('打开'),
+              ),
+              TextButton(
+                style: toolbarText(),
+                onPressed: () => _editRepo(context),
+                child: const Text('修改'),
+              ),
+            ],
           ),
         ),
         const Padding(

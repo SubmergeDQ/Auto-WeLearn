@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
 import 'desktop_shell.dart';
+import 'mobile_background.dart';
 import 'theme.dart';
 import 'ui/app_scope.dart';
 import 'ui/workbench.dart';
@@ -14,6 +16,20 @@ Future<void> main() async {
 
   final state = AppState();
   final navigatorKey = GlobalKey<NavigatorState>();
+
+  // 通知栏「开始 / 停止」按钮回到 Dart 后直接驱动同一套运行状态
+  MobileBackground.init(
+    onTaskAction: (action) {
+      switch (action) {
+        case 'stop':
+          state.stopRun();
+          break;
+        case 'start':
+          state.startRun();
+          break;
+      }
+    },
+  );
 
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
@@ -36,6 +52,9 @@ Future<void> main() async {
   if (Platform.isWindows) {
     await DesktopShell.init(state: state, navigatorKey: navigatorKey);
   }
+
+  // 启动后静默检查一次 GitHub Releases；失败不打扰离线使用，设置页仍可手动重试
+  unawaited(state.checkForUpdate(silent: true));
 }
 
 class WeLearnApp extends StatelessWidget {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'app_scope.dart';
 import 'nav.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/settings_page.dart';
@@ -33,6 +34,7 @@ class _WorkbenchState extends State<Workbench> {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 900;
+    final state = AppScope.of(context);
 
     final pages = IndexedStack(
       index: _section.index,
@@ -59,7 +61,15 @@ class _WorkbenchState extends State<Workbench> {
       backgroundColor: Tokens.canvas,
       body: Row(
         children: [
-          AppNavRail(section: _section, onSelect: _go),
+          AppNavRail(
+            section: _section,
+            onSelect: _go,
+            width: state.railCollapsed ? 64 : state.railWidth,
+            collapsed: state.railCollapsed,
+            onToggleCollapsed: state.toggleRailCollapsed,
+            onResize: (delta) => state.setRailWidth(state.railWidth + delta),
+            onResizeEnd: state.commitRailWidth,
+          ),
           Expanded(child: pages),
         ],
       ),
