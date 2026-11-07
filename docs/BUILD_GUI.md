@@ -24,6 +24,17 @@
    MSBuild、CMake 与 AOT snapshotter 都会把 `D:\黄译\桌面\…` 读成乱码。
    所以构建必须放在纯英文目录进行：把 `app/` 同步到 `D:\dev\wbuild` 再构建，产物再拷回 `release/`。
 
+   > **同步必须是整目录，不能只同步 `lib/`。** 曾经只同步了 `lib test tool`，
+   > `wbuild/android/` 还是旧副本，结果打出的 release APK **没有 `INTERNET` 权限**
+   > （debug 包因为 `src/debug/AndroidManifest.xml` 自带该权限所以正常），
+   > 表现为「登录时 Failed host lookup / 连不上服务器」。改完清单或 gradle 后务必：
+
+   ```bash
+   cd app && tar -cf - --exclude=build --exclude=.dart_tool --exclude=.idea . | (cd /d/dev/wbuild && tar -xf -)
+   ```
+
+   > 出包后建议核一次权限：`aapt dump permissions app-release.apk | grep INTERNET`。
+
 3. **代理环境变量会污染 `flutter test`**
    环境里同时存在 `HTTP_PROXY` 与 `http_proxy`，会让 flutter_tester 的本地 WebSocket 走代理而失败。
    跑测试前先删掉这些变量：
