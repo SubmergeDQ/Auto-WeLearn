@@ -6,6 +6,7 @@ import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/theme.dart';
 import 'package:welearn_app/ui/app_scope.dart';
+import 'package:welearn_app/ui/components.dart';
 import 'package:welearn_app/ui/widgets.dart';
 import 'package:welearn_app/ui/workbench.dart';
 
@@ -375,5 +376,53 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  testWidgets('滑条数值可精确输入，两端允许相等', (tester) async {
+    int started = 90;
+    int ended = 100;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setLocal) => Center(
+              child: SizedBox(
+                width: 300,
+                child: RangeField(
+                  label: '目标正确率',
+                  min: 0,
+                  max: 100,
+                  start: started,
+                  end: ended,
+                  suffix: '%',
+                  onChanged: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                  onChangeEnd: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // 两个 thumb 重叠后无法再用滑块分别选中，点数值走精确输入
+    await tester.tap(find.text('90 – 100%'));
+    await tester.pumpAndSettle();
+    expect(find.text('目标正确率精确设置'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '100');
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(started, 100);
+    expect(ended, 100);
+    expect(find.text('100 – 100%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

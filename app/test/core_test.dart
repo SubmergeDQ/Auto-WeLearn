@@ -5,6 +5,7 @@ import 'package:welearn_app/core/api.dart';
 import 'package:welearn_app/core/browser_login.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/parser.dart';
+import 'package:welearn_app/core/runner.dart';
 import 'package:welearn_app/core/scorm.dart';
 import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/ui/components.dart' show snapToStep;
@@ -238,6 +239,32 @@ void main() {
   });
 
   group('口语题识别', () {
+    test('Listening & Speaking 标题识别为口语小节', () {
+      const lesson = Lesson(
+        unitIndex: 2,
+        scoid: 'x',
+        location: 'Unit 3 > Text A: Listening & Speaking > Task 4',
+        visible: true,
+        complete: false,
+        learnTime: '',
+        crateLabel: '-',
+      );
+      expect(isOralLesson(lesson), isTrue);
+    });
+
+    test('普通阅读小节不会被口语关键词误判', () {
+      const lesson = Lesson(
+        unitIndex: 2,
+        scoid: 'y',
+        location: 'Unit 3 > Text B: Reading',
+        visible: true,
+        complete: false,
+        learnTime: '',
+        crateLabel: '-',
+      );
+      expect(isOralLesson(lesson), isFalse);
+    });
+
     test('页面含录音控件时标记为口语页', () {
       final parsed = parseSco(
         '<html><body><div class="record-button">按住录音</div></body></html>',

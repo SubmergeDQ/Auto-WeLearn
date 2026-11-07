@@ -575,6 +575,32 @@ class _RangeFieldState extends State<RangeField> {
     return lower <= upper ? RangeValues(lower, upper) : RangeValues(upper, lower);
   }
 
+  /// 精确输入：两个 thumb 重合时（例如 100–100）无法再用滑块分别选中，
+  /// 这里直接给出输入框，保证任何区间（含两端相等）都能设置。
+  Future<void> _editValues() async {
+    if (!widget.enabled) return;
+    final (currentStart, currentEnd) = _snap(_drag ?? _resting());
+    final result = await showDialog<RangeValues>(
+      context: context,
+      builder: (_) => _RangeValueDialog(
+        label: widget.label,
+        min: widget.min.round(),
+        max: widget.max.round(),
+        step: widget.step,
+        suffix: widget.suffix,
+        start: currentStart,
+        end: currentEnd,
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    final a = result.start.round();
+    final b = result.end.round();
+    setState(() => _drag = null);
+    widget.onChanged(a, b);
+    widget.onChangeEnd?.call(a, b);
+  }
+
   @override
   Widget build(BuildContext context) {
     final values = _drag ?? _resting();
@@ -596,11 +622,26 @@ class _RangeFieldState extends State<RangeField> {
                 ),
               ),
             ),
-            Text(
-              '$shownStart – $shownEnd${widget.suffix}',
-              style: monoStyle(
-                size: 11.5,
-                color: enabled ? Tokens.textPrimary : Tokens.textTertiary,
+            Tooltip(
+              message: '点击精确输入',
+              child: InkWell(
+                onTap: enabled ? _editValues : null,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 1,
+                  ),
+                  child: Text(
+                    '$shownStart – $shownEnd${widget.suffix}',
+                    style: monoStyle(
+                      size: 11.5,
+                      color: enabled
+                          ? Tokens.textPrimary
+                          : Tokens.textTertiary,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -645,6 +686,154 @@ class _RangeFieldState extends State<RangeField> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 区间滑杆的精确输入弹窗。
+///
+/// 两个 thumb 重合后（例如 100–100）滑块上很难再分别选中，
+/// 这里用输入框保证包括「两端相等」在内的任何区间都能设置。
+class _RangeValueDialog extends StatefulWidget {
+  const _RangeValueDialog({
+    required this.label,
+    required this.min,
+    required this.max,
+    required this.step,
+    required this.suffix,
+    required this.start,
+    required this.end,
+  });
+
+  final String label;
+  final int min;
+  final int max;
+  final int step;
+  final String suffix;
+  final int start;
+  final int end;
+
+  @override
+  State<_RangeValueDialog> createState() => _RangeValueDialogState();
+}
+
+class _RangeValueDialogState extends State<_RangeValueDialog> {
+  late final TextEditingController _startController = TextEditingController(
+    text: '${widget.start}',
+  );
+  late final TextEditingController _endController = TextEditingController(
+    text: '${widget.end}',
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _startController.dispose();
+    _endController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final a = int.tryParse(_startController.text.trim());
+    final b = int.tryParse(_endController.text.trim());
+    if (a == null || b == null) {
+      setState(() => _error = '请输入整数');
+      return;
+    }
+    if (a < widget.min || a > widget.max || b < widget.min || b > widget.max) {
+      setState(() => _error = '取值范围 ${widget.min} – ${widget.max}');
+      return;
+    }
+    if (a > b) {
+      setState(() => _error = '下限不能大于上限');
+      return;
+    }
+    final snappedA = snapToStep(
+      a,
+      min: widget.min,
+      max: widget.max,
+      step: widget.step,
+    );
+    final snappedB = snapToStep(
+      b,
+      min: widget.min,
+      max: widget.max,
+      step: widget.step,
+    );
+    Navigator.pop(context, RangeValues(snappedA.toDouble(), snappedB.toDouble()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+        child: SizedBox(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${widget.label}精确设置',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '范围 ${widget.min} – ${widget.max}${widget.suffix}，两端可以相等。',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Tokens.textTertiary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _startController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '下限',
+                  isDense: true,
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _endController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '上限',
+                  isDense: true,
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: const TextStyle(fontSize: 11, color: Tokens.danger),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 6),
+                  FilledButton(onPressed: _submit, child: const Text('确定')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

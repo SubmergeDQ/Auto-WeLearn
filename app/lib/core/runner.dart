@@ -100,9 +100,13 @@ Future<ScannedCourse> scanCourse(
   );
 }
 
-/// 口语小节关键词。刻意不含裸 speaking ——「Listening & Speaking」是听力题。
+/// 口语小节关键词。`Listening & Speaking` 是听说课，用户明确希望整节跳过；
+/// 但只匹配完整短语或科目名，避免把单独的「Listening」听力课误判。
 const oralLessonKeywords = [
   '口语',
+  'listening & speaking',
+  'listening and speaking',
+  'speaking',
   'pronunciation',
   'read aloud',
   'readaloud',
@@ -232,12 +236,24 @@ Future<LessonResult> runLesson({
           '等待 ${(waitSec ~/ 60).toString().padLeft(2, '0')}:${(waitSec % 60).toString().padLeft(2, '0')}',
     );
 
-    // 页面特征判为口语课且没有可提交题目：直接跳过，不做整节等待。
-    // 标题关键词没命中的口语小节靠这里兜底，不再白等 5–8 分钟。
+    // 判为口语课的情况直接跳过，不做整节等待：
+    // 1. 标题命中口语关键词（旧队列没重新扫描时也能生效）
+    // 2. 没有任何可提交题目（纯口语 / 录音 / 语音评测页）
+    // 3. 口语题数量不少于可提交题（听说课里只夹杂少量听力题）
+    final oralTitle = isOralLesson(lesson);
+    final noSubmittable = parsed.questions.isEmpty;
+    final mostlyOral =
+        parsed.oral > 0 && parsed.oral >= parsed.questions.length;
     if (settings.skipOralLesson &&
-        parsed.questions.isEmpty &&
-        (parsed.oral > 0 || parsed.oralPage)) {
-      onLog?.call('info', '识别为口语小节（页面含录音/语音特征），已跳过等待');
+        (oralTitle || noSubmittable || mostlyOral)) {
+      final reason = oralTitle
+          ? '标题识别为口语小节，已跳过等待'
+          : (noSubmittable
+              ? (parsed.oralPage
+                  ? '识别为口语小节（页面含录音/语音特征），已跳过等待'
+                  : '未解析到可提交题目，已跳过等待')
+              : '口语题多于可提交题，按口语小节跳过等待');
+      onLog?.call('info', reason);
       return LessonResult(
         scoid: lesson.scoid,
         status: LessonStatus.skipped,
