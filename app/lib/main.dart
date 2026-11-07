@@ -53,8 +53,13 @@ Future<void> main() async {
     await DesktopShell.init(state: state, navigatorKey: navigatorKey);
   }
 
-  // 启动后静默检查一次 GitHub Releases；失败不打扰离线使用，设置页仍可手动重试
-  unawaited(state.checkForUpdate(silent: true));
+  // 每天最多自动检查一次 GitHub Releases；失败不打扰离线使用，设置页仍可手动重试。
+  // 每 6 小时触发一次判断，长时间挂机跨天时也能发现新版本。
+  unawaited(state.autoCheckForUpdate());
+  Timer.periodic(
+    const Duration(hours: 6),
+    (_) => state.autoCheckForUpdate(),
+  );
 }
 
 class WeLearnApp extends StatelessWidget {

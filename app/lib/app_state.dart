@@ -143,6 +143,9 @@ class AppState extends ChangeNotifier {
   String? activeAccountId;
   DateTime? lastLoginAt;
 
+  /// 上次检查 GitHub 更新的时间，用来做「每天最多自动检查一次」的节流
+  DateTime? lastUpdateCheckAt;
+
   /// 从 WeLearn 学生主页实时拉取的头像字节；拉不到时界面回退文字占位。
   Uint8List? avatarBytes;
   bool avatarLoading = false;
@@ -395,6 +398,9 @@ class AppState extends ChangeNotifier {
           );
           railCollapsed = data['railCollapsed'] as bool? ?? false;
           lastLoginAt = DateTime.tryParse('${data['lastLoginAt']}');
+          lastUpdateCheckAt = DateTime.tryParse(
+            '${data['lastUpdateCheckAt']}',
+          );
           final s = data['settings'];
           if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
           notifyListeners();
@@ -444,6 +450,8 @@ class AppState extends ChangeNotifier {
           'railCollapsed': railCollapsed,
           if (lastLoginAt != null)
             'lastLoginAt': lastLoginAt!.toIso8601String(),
+          if (lastUpdateCheckAt != null)
+            'lastUpdateCheckAt': lastUpdateCheckAt!.toIso8601String(),
         }),
       );
     } catch (_) {
@@ -515,7 +523,7 @@ class AppState extends ChangeNotifier {
 
   /// 检查 GitHub Releases 上的最新版本。
   ///
-  /// [silent] 为 true 时用于启动后台检查：失败不写错误提示，避免离线启动时
+  /// [silent] 为 true 时用于后台检查：失败不写错误提示，避免离线启动时
   /// 设置页一直挂着一条红色失败信息。
   Future<void> checkForUpdate({bool silent = false}) async {
     if (checkingUpdate) return;
@@ -545,8 +553,24 @@ class AppState extends ChangeNotifier {
       }
     } finally {
       checkingUpdate = false;
+      // 失败也记一次时间：离线时不会每次启动都重发请求
+      lastUpdateCheckAt = DateTime.now();
+      unawaited(_persist());
       notifyListeners();
     }
+  }
+
+  /// 每天最多自动检查一次更新。
+  ///
+  /// 启动时调用一次，另外由运行期间每 6 小时的定时器兜底，
+  /// 保证长时间挂机的用户跨天也能收到版本提示。
+  Future<void> autoCheckForUpdate() async {
+    final last = lastUpdateCheckAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(hours: 24)) {
+      return;
+    }
+    await checkForUpdate(silent: true);
   }
 
   /// 下载当前平台对应的更新包，返回本地路径；失败时把原因写进 [updateError]。
