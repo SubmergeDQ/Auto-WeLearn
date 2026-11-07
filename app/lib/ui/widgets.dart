@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../core/models.dart';
@@ -251,7 +253,11 @@ class LessonTile extends StatelessWidget {
               ),
               if (showChevron) ...[
                 const SizedBox(width: 2),
-                const Icon(Icons.chevron_right, size: 18, color: Tokens.borderStrong),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Tokens.borderStrong,
+                ),
               ],
             ],
           ),
@@ -259,6 +265,215 @@ class LessonTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 账号头像：优先显示从 WeLearn 拉回来的实时头像，
+/// 没有拿到（未登录 / 解析失败 / 下载失败）才退回课程名首字或人形图标。
+class AccountAvatar extends StatelessWidget {
+  const AccountAvatar({
+    super.key,
+    required this.bytes,
+    required this.initials,
+    this.size = 32,
+    this.loggedIn = true,
+    this.loading = false,
+  });
+
+  final Uint8List? bytes;
+  final String initials;
+  final double size;
+  final bool loggedIn;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = bytes;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: loggedIn ? Tokens.accentSoft : Tokens.mutedSoft,
+        border: Border.all(
+          color: image == null ? Colors.transparent : Tokens.border,
+          width: 0.8,
+        ),
+      ),
+      child: ClipOval(
+        child: image != null
+            ? Image.memory(
+                image,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _fallback(),
+              )
+            : (loading && loggedIn
+                  ? Center(
+                      child: SizedBox(
+                        width: size * 0.42,
+                        height: size * 0.42,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Tokens.accent,
+                        ),
+                      ),
+                    )
+                  : _fallback()),
+      ),
+    );
+  }
+
+  Widget _fallback() => Center(
+    child: loggedIn
+        ? Text(
+            initials.isEmpty ? 'W' : initials,
+            style: TextStyle(
+              fontSize: size * 0.42,
+              fontWeight: FontWeight.w600,
+              color: Tokens.accent,
+            ),
+          )
+        : Icon(
+            Icons.person_outline,
+            size: size * 0.5,
+            color: Tokens.textTertiary,
+          ),
+  );
+}
+
+/// 选择框：和圆角、强调色、180ms 状态过渡保持同一套语言。
+///
+/// 替换了原生 compact Checkbox —— 那个方形小框在 52/62 高的行里显得又小又生硬，
+/// 三态时只有一个短横，几乎看不出是"部分选中"。
+/// 选中后有轻微的强调色投影和缩放回弹，勾选动作更容易被看见，但不会抢状态点的戏。
+class AppCheckbox extends StatelessWidget {
+  const AppCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.size = 20,
+    this.tapSize = 34,
+    this.label,
+  });
+
+  /// true / false / null（三态的部分选中）
+  final bool? value;
+  final ValueChanged<bool>? onChanged;
+  final double size;
+  final double tapSize;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onChanged != null;
+    final mixed = value == null;
+    final checked = value == true;
+    final active = checked || mixed;
+    final fill = active
+        ? (enabled ? Tokens.accent : Tokens.borderStrong)
+        : Tokens.surface;
+    final borderColor = active
+        ? fill
+        : (enabled ? Tokens.borderStrong : Tokens.border);
+
+    Widget mark;
+    if (mixed) {
+      mark = Container(
+        key: const ValueKey('mixed'),
+        width: size * 0.55,
+        height: 2.2,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      );
+    } else if (checked) {
+      mark = SizedBox(
+        key: const ValueKey('checked'),
+        width: size * 0.8,
+        height: size * 0.8,
+        child: CustomPaint(painter: _CheckMarkPainter(color: Colors.white)),
+      );
+    } else {
+      mark = const SizedBox(key: ValueKey('empty'));
+    }
+
+    return Semantics(
+      label: label,
+      checked: checked,
+      mixed: mixed,
+      enabled: enabled,
+      child: InkWell(
+        onTap: enabled ? () => onChanged!(value != true) : null,
+        borderRadius: BorderRadius.circular(Tokens.radiusControl),
+        hoverColor: Tokens.accentSoft,
+        child: SizedBox(
+          width: tapSize,
+          height: tapSize,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: fill,
+                border: Border.all(color: borderColor, width: 1.5),
+                borderRadius: BorderRadius.circular(size * 0.3),
+                boxShadow: active && enabled
+                    ? [
+                        BoxShadow(
+                          color: Tokens.accent.withValues(alpha: 0.16),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 160),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: animation, child: child),
+                  ),
+                  child: mark,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 手绘勾：圆头两段线，比图标字体更贴合 20px 的方框，也不会被字体子集裁掉。
+class _CheckMarkPainter extends CustomPainter {
+  const _CheckMarkPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.13
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    final path = Path()
+      ..moveTo(size.width * 0.14, size.height * 0.52)
+      ..lineTo(size.width * 0.4, size.height * 0.76)
+      ..lineTo(size.width * 0.86, size.height * 0.24);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckMarkPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// 日志行

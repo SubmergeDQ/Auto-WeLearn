@@ -28,6 +28,9 @@ Thumbs.db
 # tsup 处理 TS 配置时生成的临时文件
 *.bundled_*.mjs
 
+# 设计过程截图（只在本地保留）
+.oil-ui/
+
 # Flutter
 app/.dart_tool/
 app/.flutter-plugins

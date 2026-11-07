@@ -27,6 +27,23 @@ class Tokens {
   static const radiusControl = 6.0;
   static const radiusCard = 10.0;
 
+  // ── 三段式外壳 ────────────────────────────────────────
+  /// 桌面左侧导航栏宽度：品牌、三个段、底部账号卡
+  static const railWidth = 208.0;
+
+  /// 内容区左右内边距（桌面 / 移动）
+  static const pagePadding = 24.0;
+  static const pagePaddingCompact = 16.0;
+
+  /// 内容区最大宽度：超宽屏不把表格和卡片拉散
+  static const pageMaxWidth = 1200.0;
+
+  /// 导航项高度
+  static const navItemHeight = 40.0;
+
+  /// 移动端底部导航高度（不含安全区）
+  static const bottomNavHeight = 56.0;
+
   /// 顶栏/工具栏内所有控件（状态胶囊、图标按钮、按钮）的统一高度。
   /// 三者高度不一致时，即使 Row 居中也会显得参差。
   static const controlHeight = 32.0;
@@ -66,7 +83,9 @@ TextStyle monoStyle({
   Color color = Tokens.textSecondary,
 }) => TextStyle(
   fontFamily: Tokens.mono,
-  fontFamilyFallback: const ['Roboto Mono', 'Menlo'],
+  // 等宽字体本身没有中文字形，必须显式给中文回退，
+  // 否则「46 分 5 秒」里的分/秒会变成方框。
+  fontFamilyFallback: const ['Roboto Mono', 'Menlo', ...Tokens.fontFallback],
   fontSize: size,
   fontWeight: weight,
   color: color,
@@ -121,7 +140,12 @@ ThemeData buildTheme() {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(Tokens.radiusControl),
         ),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Segoe UI',
+          fontFamilyFallback: Tokens.fontFallback,
+        ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -132,7 +156,23 @@ ThemeData buildTheme() {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(Tokens.radiusControl),
         ),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Segoe UI',
+          fontFamilyFallback: Tokens.fontFallback,
+        ),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: Tokens.accent,
+        textStyle: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Segoe UI',
+          fontFamilyFallback: Tokens.fontFallback,
+        ),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -167,7 +207,12 @@ ButtonStyle toolbarFilled() => FilledButton.styleFrom(
   minimumSize: const Size(0, Tokens.controlHeight),
   padding: const EdgeInsets.symmetric(horizontal: 14),
   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+  textStyle: const TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w600,
+    fontFamily: 'Segoe UI',
+    fontFamilyFallback: Tokens.fontFallback,
+  ),
 );
 
 /// 工具栏小型描边按钮，与 [toolbarFilled] 同高。
@@ -175,5 +220,39 @@ ButtonStyle toolbarOutlined() => OutlinedButton.styleFrom(
   minimumSize: const Size(0, Tokens.controlHeight),
   padding: const EdgeInsets.symmetric(horizontal: 12),
   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+  textStyle: const TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    fontFamily: 'Segoe UI',
+    fontFamilyFallback: Tokens.fontFallback,
+  ),
+);
+
+/// 工具栏里的文字按钮，和 [toolbarOutlined] 严格等高。
+ButtonStyle toolbarText({Color? foreground}) => TextButton.styleFrom(
+  foregroundColor: foreground,
+  minimumSize: const Size(0, Tokens.controlHeight),
+  padding: const EdgeInsets.symmetric(horizontal: 10),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  textStyle: const TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    fontFamily: 'Segoe UI',
+    fontFamilyFallback: Tokens.fontFallback,
+  ),
+);
+
+/// 工具栏里的危险操作（停止），和 [toolbarOutlined] 严格等高。
+ButtonStyle toolbarDanger() => OutlinedButton.styleFrom(
+  foregroundColor: Tokens.danger,
+  side: const BorderSide(color: Tokens.danger),
+  minimumSize: const Size(0, Tokens.controlHeight),
+  padding: const EdgeInsets.symmetric(horizontal: 12),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  textStyle: const TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    fontFamily: 'Segoe UI',
+    fontFamilyFallback: Tokens.fontFallback,
+  ),
 );

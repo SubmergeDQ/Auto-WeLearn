@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:html/parser.dart' as html_parser;
 
 import 'errors.dart';
 import 'models.dart';
@@ -15,6 +18,25 @@ class Api {
   String _refCourse(String cid) => '$_base/student/course_info.aspx?cid=$cid';
   String _refStudy(String cid, String classid, String scoid) =>
       '$_base/Student/StudyCourse.aspx?cid=$cid&classid=$classid&sco=$scoid';
+
+  // ── 账号 ─────────────────────────────────────────────
+  /// 拉当前账号的实时头像。平台没有独立头像接口，地址写在学生主页里，
+  /// 所以先取页面、解析出图片地址，再带 Cookie 把图片二进制读回来。
+  /// 解析不到或下载失败都返回 null，界面回退到文字占位，不假装成功。
+  Future<Uint8List?> fetchAvatar() async {
+    final page = await session.get('/student/index.aspx', referer: '$_base/');
+    final url = findAvatarUrl(page.text, _base);
+    if (url == null) return null;
+    final bytes = await session.getBytes(
+      url,
+      referer: '$_base/student/index.aspx',
+    );
+    // 太小通常是 1x1 占位图，太大不是头像
+    if (bytes == null || bytes.length < 128 || bytes.length > 2 * 1024 * 1024) {
+      return null;
+    }
+    return bytes;
+  }
 
   // ── 课程 ─────────────────────────────────────────────
   Future<List<Course>> listCourses() async {
@@ -319,6 +341,120 @@ class CmiRead {
 }
 
 bool isRetOk(String text) => RegExp(r'"ret"\s*:\s*0').hasMatch(text);
+
+// ── 头像地址解析 ────────────────────────────────────────
+final RegExp _avatarWord = RegExp(
+  r'avatar|headimg|headpic|headphoto|userphoto|userface|userimg|portrait|'
+  r'photo|头像|touxiang',
+  caseSensitive: false,
+);
+final RegExp _avatarPlaceholder = RegExp(
+  r'default|nopic|noavatar|placeholder|blank|1x1|spacer|logo|icon',
+  caseSensitive: false,
+);
+final RegExp _imageLike = RegExp(
+  r'\.(png|jpe?g|gif|webp|bmp)(\?|#|$)',
+  caseSensitive: false,
+);
+final RegExp _uploadPath = RegExp(
+  r'upload|userphoto|userpic|/user/',
+  caseSensitive: false,
+);
+final RegExp _cssUrl = RegExp(
+  r'''url\(\s*["']?([^"')]+)["']?\s*\)''',
+  caseSensitive: false,
+);
+
+/// 从学生主页 HTML 里挑头像地址。四级候选：
+/// 1. `<img>` 的 class/id/alt/src 命中头像关键词；
+/// 2. 用 CSS `background-image` 显示的头像（平台改版后常见）；
+/// 3. 脚本/JSON 里的 avatar、headimg、photo 字段；
+/// 4. 上传目录下的图片（平台常见 `/Upload/UserPhoto/xxx.jpg`）。
+/// 都不像就返回 null，绝不把 logo 当头像显示。
+String? findAvatarUrl(String html, String baseUrl) {
+  if (html.isEmpty) return null;
+  final doc = html_parser.parse(html);
+  String? uploadCandidate;
+
+  for (final img in doc.querySelectorAll('img')) {
+    final hint =
+        '${img.attributes['class']} ${img.attributes['id']} ${img.attributes['alt']}';
+    // 懒加载时 src 常是 blank.png，真实地址在 data-original / data-src 里，
+    // 所以四个属性都要看，不能只取第一个非空值。
+    final rawAttributes = [
+      img.attributes['src'],
+      img.attributes['data-src'],
+      img.attributes['data-original'],
+      img.attributes['data-lazy-src'],
+    ].whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty);
+
+    for (final raw in rawAttributes) {
+      if (!_looksLikeImage(raw)) continue;
+      if (_avatarWord.hasMatch(hint) || _avatarWord.hasMatch(raw)) {
+        return _absoluteAvatarUrl(raw, baseUrl);
+      }
+      if (_uploadPath.hasMatch(raw)) {
+        uploadCandidate ??= _absoluteAvatarUrl(raw, baseUrl);
+      }
+    }
+  }
+
+  for (final element in doc.querySelectorAll('[style]')) {
+    final style = element.attributes['style'] ?? '';
+    if (!style.contains('url(')) continue;
+    final hint = '${element.attributes['class']} ${element.attributes['id']}';
+    for (final match in _cssUrl.allMatches(style)) {
+      final raw = _unescape(match.group(1)!);
+      if (!_looksLikeImage(raw)) continue;
+      if (_avatarWord.hasMatch(hint) ||
+          _avatarWord.hasMatch(raw) ||
+          _uploadPath.hasMatch(raw)) {
+        return _absoluteAvatarUrl(raw, baseUrl);
+      }
+    }
+  }
+
+  final field = RegExp(
+    r'"(?:avatar|headimg|headpic|headphoto|userphoto|userface|userimg|'
+    r'photo|imgurl|face)"\s*:\s*"([^"]+)"',
+    caseSensitive: false,
+  ).firstMatch(html);
+  if (field != null) {
+    final raw = _unescape(field.group(1)!);
+    if (_looksLikeImage(raw)) return _absoluteAvatarUrl(raw, baseUrl);
+  }
+
+  final upload = RegExp(
+    r'''[^"'\s<>]*(?:Upload|upload|UpLoad)[^"'\s<>]*\.(?:png|jpe?g|webp|gif)''',
+    caseSensitive: false,
+  ).firstMatch(html);
+  if (upload != null) {
+    final raw = _unescape(upload.group(0)!);
+    if (_looksLikeImage(raw)) return _absoluteAvatarUrl(raw, baseUrl);
+  }
+
+  return uploadCandidate;
+}
+
+bool _looksLikeImage(String raw) {
+  if (raw.isEmpty || raw.startsWith('data:')) return false;
+  if (!_imageLike.hasMatch(raw)) return false;
+  return !_avatarPlaceholder.hasMatch(raw);
+}
+
+String _absoluteAvatarUrl(String raw, String baseUrl) {
+  final src = _unescape(raw.trim());
+  if (src.startsWith('//')) return 'https:$src';
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  return Uri.parse(baseUrl).resolve(src).toString();
+}
+
+String _unescape(String text) => text
+    .replaceAll('&amp;', '&')
+    .replaceAll('&#38;', '&')
+    .replaceAll(r'\/', '/')
+    .replaceAll(r'\u0026', '&')
+    .trim();
 
 int parseScormTime(Object? value) {
   if (value is num) return value.round().clamp(0, 1 << 31);

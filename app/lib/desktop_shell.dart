@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -34,21 +35,52 @@ class DesktopShell {
       );
       final menu = Menu();
       await menu.buildFrom([
-        MenuItemLabel(label: '打开主界面', onClicked: (_) => showWindow()),
+        MenuItemLabel(
+          label: '打开主界面',
+          onClicked: (_) {
+            traceClose('menu: open');
+            unawaited(showWindow());
+          },
+        ),
         MenuItemLabel(
           label: '重新扫描',
           onClicked: (_) async {
+            traceClose('menu: rescan');
             await showWindow();
             final cid = state.currentCid;
-            if (cid != null && !state.running) await state.loadCourse(cid);
+            if (cid != null && !state.running && !state.scanning) {
+              await state.loadCourse(cid);
+            }
           },
         ),
         MenuSeparator(),
-        MenuItemLabel(label: '退出', onClicked: (_) => quit()),
+        MenuItemLabel(
+          label: '退出',
+          onClicked: (_) {
+            traceClose('menu: quit');
+            unawaited(quit());
+          },
+        ),
       ]);
       await tray.setContextMenu(menu);
-      tray.registerSystemTrayEventHandler((eventName) {
-        if (eventName == kSystemTrayEventClick) showWindow();
+      // Windows 上插件只在右键时发一个 "right-click" 事件，不会自己弹菜单：
+      // 必须由应用主动调用 popUpContextMenu()，否则点右键完全没有反应。
+      // 左键/双击保持"打开主界面"，与 README 里写的行为一致。
+      tray.registerSystemTrayEventHandler((eventName) async {
+        traceClose('tray event: $eventName');
+        switch (eventName) {
+          case kSystemTrayEventRightClick:
+            try {
+              await tray.popUpContextMenu();
+            } catch (e) {
+              traceClose('popup menu failed: $e');
+            }
+            break;
+          case kSystemTrayEventClick:
+          case kSystemTrayEventDoubleClick:
+            await showWindow();
+            break;
+        }
       });
       _tray = tray;
       traceClose('tray ready');

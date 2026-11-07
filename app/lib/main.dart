@@ -6,7 +6,8 @@ import 'package:window_manager/window_manager.dart';
 import 'app_state.dart';
 import 'desktop_shell.dart';
 import 'theme.dart';
-import 'ui/shell.dart';
+import 'ui/app_scope.dart';
+import 'ui/workbench.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,8 @@ Future<void> main() async {
       await windowManager.setPreventClose(true);
       await windowManager.show();
       await windowManager.focus();
-    });  }
+    });
+  }
 
   runApp(WeLearnApp(state: state, navigatorKey: navigatorKey));
 
@@ -55,7 +57,7 @@ class WeLearnApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
-        home: const WorkbenchShell(),
+        home: const Workbench(),
       ),
     );
   }

@@ -415,3 +415,15 @@ CustomScrollView(
 - `flutter analyze`：0 issue
 - `flutter test`：24 passed（新增 5 条移动端：运行卡、空闲折叠、点行抽屉、0 待处理空态、单元条筛选）
 - 桌面三栏未改动逻辑，仅把 `AppScope` / 对话框抽到 `ui/app_scope.dart`、`ui/dialogs.dart`
+
+### 12.4 本轮追加：后台运行与设置页平台分支（2026-11-07）
+
+| 条目 | 说明 |
+| --- | --- |
+| 设置页「应用」组按平台切换 | 安卓显示「保持后台运行（Wake Lock）」「任务栏常驻」「权限申请」，不再显示「关闭窗口时 / 托盘图标」；桌面反之 |
+| 原生能力 | `MainActivity` 加 MethodChannel，`BackgroundService` 持有 `PARTIAL_WAKE_LOCK` 并启动 `dataSync` 前台服务；关掉常驻通知时先 `startForeground` 再移除通知，避免被系统判违规 |
+| 权限 | Manifest 声明 `WAKE_LOCK` / `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` / `POST_NOTIFICATIONS`；Android 13+ 由设置页按钮运行时申请，等系统弹窗回调后再更新状态 |
+| 状态持久化 | `keepAwake` / `persistentNotification` 写入 `app_state.json`，冷启动自动同步给原生服务 |
+| 已知限制 | 只锁 CPU 不保网络与进程不被杀；长时间挂机仍需把应用加入电池优化白名单（设置页文案已说明） |
+
+> 本次还统一了单元名（`U01` → `Unit 1`）、扫描进度反馈、账号实时头像与选择控件，见 `docs/GUI_DESIGN.md` §6.1。

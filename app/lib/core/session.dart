@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'errors.dart';
 
@@ -221,6 +222,37 @@ class Session {
     accept: accept,
     requestTimeout: requestTimeout,
   );
+
+  /// 二进制资源（目前只有头像）。走同一个 HttpClient，带上同样的 Cookie / Referer，
+  /// 不用 `Image.network` 是因为平台头像常需要登录态。失败返回 null，由界面回退占位。
+  Future<Uint8List?> getBytes(
+    String pathOrUrl, {
+    String? referer,
+    Duration? requestTimeout,
+  }) async {
+    try {
+      final response = await _send(
+        resolve(pathOrUrl),
+        'GET',
+        null,
+        referer,
+        true,
+        'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        requestTimeout,
+      );
+      if (response.statusCode != 200) {
+        await response.drain<void>().catchError((_) {});
+        return null;
+      }
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(timeout)) {
+        builder.add(chunk);
+      }
+      return builder.takeBytes();
+    } catch (_) {
+      return null;
+    }
+  }
 
   void close() => _client.close(force: true);
 }

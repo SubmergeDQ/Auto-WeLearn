@@ -33,6 +33,28 @@ class CourseUnit {
   final String unitName;
   final String name;
   final bool visible;
+
+  /// 平台 `unitname` 的写法不统一：`U01` / `Unit 01` / `第 3 单元` / `1` 都出现过。
+  /// 界面统一显示 `Unit 1`；实在解析不出编号时保留平台原文，不猜。
+  String get label {
+    final n = parseUnitNumber(unitName) ?? parseUnitNumber(name);
+    if (n != null) return 'Unit $n';
+    final raw = unitName.trim();
+    return raw.isEmpty ? 'Unit' : raw;
+  }
+}
+
+/// 从单元名里取编号。只认开头的编号前缀，中文标题不会被误判成数字。
+int? parseUnitNumber(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) return null;
+  final pure = RegExp(r'^0*(\d{1,3})$').firstMatch(text);
+  if (pure != null) return int.tryParse(pure.group(1)!);
+  final prefixed = RegExp(
+    r'^(?:[Uu](?:nit)?|第|单元)\s*[:.\-_]?\s*0*(\d{1,3})(?!\d)',
+  ).firstMatch(text);
+  if (prefixed != null) return int.tryParse(prefixed.group(1)!);
+  return null;
 }
 
 class Lesson {

@@ -4,16 +4,25 @@ import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import 'app_scope.dart';
+import 'login_web_page.dart';
+import 'widgets.dart';
 
 /// 登录入口。桌面用对话框，手机用底部抽屉。
 ///
 /// 手机上没有开发者工具，所以先给「从剪贴板读取」；读到的 Cookie **不回显**，
 /// 只显示识别到的项数与前几个名字（截图不会泄露凭据）。
-Future<void> showLoginDialog(BuildContext context) async {
+/// 登录入口。桌面用对话框，手机用底部抽屉。
+///
+/// [pasteOnly] 为 true 时只显示粘贴方式——设置页把「内置浏览器登录」做成了独立按钮，
+/// 再在弹窗里放一遍会造成两个入口做同一件事。
+Future<void> showLoginDialog(
+  BuildContext context, {
+  bool pasteOnly = false,
+}) async {
   final state = AppScope.of(context);
   final compact = MediaQuery.sizeOf(context).width < 600;
   final controller = TextEditingController();
-  var showRaw = !compact;
+  var showRaw = pasteOnly || !compact;
   String? summary;
 
   Widget body(StateSetter setLocal) {
@@ -22,9 +31,13 @@ Future<void> showLoginDialog(BuildContext context) async {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          compact
-              ? '先在手机浏览器登录 welearn.sflep.com，复制 Cookie，再点下面的按钮读取。'
-              : '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
+          pasteOnly
+              ? (compact
+                    ? '先在手机浏览器登录 welearn.sflep.com，复制 Cookie，再点下面的按钮读取。'
+                    : '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。')
+              : (compact
+                    ? '用内置浏览器登录最省事；也可以先在手机浏览器登录后复制 Cookie。'
+                    : '用内置浏览器登录，或者从开发者工具复制 Cookie 粘贴。'),
           style: const TextStyle(
             fontSize: 12,
             color: Tokens.textSecondary,
@@ -32,6 +45,41 @@ Future<void> showLoginDialog(BuildContext context) async {
           ),
         ),
         const SizedBox(height: 12),
+        if (!pasteOnly) ...[
+          SizedBox(
+            width: double.infinity,
+            height: compact ? Tokens.tapMin : Tokens.controlHeight + 8,
+            child: FilledButton.icon(
+              onPressed: state.busy
+                  ? null
+                  : () async {
+                      final cookie = await Navigator.of(context).push<String>(
+                        MaterialPageRoute(builder: (_) => const LoginWebPage()),
+                      );
+                      if (cookie == null || !context.mounted) return;
+                      final ok = await state.login(cookie);
+                      if (ok && context.mounted) Navigator.pop(context);
+                    },
+              icon: const Icon(Icons.language_rounded, size: 18),
+              label: const Text('用内置浏览器登录'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  '或粘贴 Cookie',
+                  style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
+                ),
+              ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
         if (!showRaw) ...[
           SizedBox(
             width: double.infinity,
@@ -116,7 +164,7 @@ Future<void> showLoginDialog(BuildContext context) async {
         ],
         const SizedBox(height: 6),
         const Text(
-          '账号密码登录暂不支持（平台使用 PKCE 流程，改版风险高）。',
+          '账号密码只在平台页面里输入，本工具不保存密码，只保存登录后的 Cookie。',
           style: TextStyle(
             fontSize: 11,
             color: Tokens.textTertiary,
@@ -253,6 +301,47 @@ Future<bool> confirmLogout(BuildContext context) async {
           style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
           onPressed: () => Navigator.pop(context, true),
           child: const Text('退出登录'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// 强制清除所有本机会话凭据前的确认。
+Future<bool> confirmForceClear(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: Tokens.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tokens.radiusCard),
+      ),
+      title: const Text(
+        '强制清除会话凭据',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      content: const SizedBox(
+        width: 360,
+        child: Text(
+          '会删除本机保存的所有账号 Cookie，并停止当前运行；课程与扫描结果也会清空。下次需要重新登录。',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('强制清除'),
         ),
       ],
     ),
@@ -566,11 +655,10 @@ Future<CloseDecision?> showCloseDialog(BuildContext context) async {
                 borderRadius: BorderRadius.circular(Tokens.radiusControl),
                 child: Row(
                   children: [
-                    Checkbox(
+                    AppCheckbox(
                       value: remember,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      onChanged: (v) => setLocal(() => remember = v ?? false),
+                      label: '下次不再询问',
+                      onChanged: (v) => setLocal(() => remember = v),
                     ),
                     const SizedBox(width: 4),
                     const Expanded(
@@ -609,4 +697,14 @@ Future<CloseDecision?> showCloseDialog(BuildContext context) async {
       ),
     ),
   );
+}
+
+/// 打开内置浏览器完成登录，成功后直接把 Cookie 交给 [AppState.login]。
+/// 返回是否登录成功（用户取消返回 false）。
+Future<bool> openBrowserLogin(BuildContext context) async {
+  final state = AppScope.of(context);
+  final cookie = await Navigator.of(context)
+      .push<String>(MaterialPageRoute(builder: (_) => const LoginWebPage()));
+  if (cookie == null || cookie.isEmpty) return false;
+  return state.login(cookie);
 }

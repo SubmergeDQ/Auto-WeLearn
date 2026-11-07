@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:welearn_app/app_state.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/theme.dart';
-import 'package:welearn_app/ui/shell.dart';
+import 'package:welearn_app/ui/app_scope.dart';
+import 'package:welearn_app/ui/widgets.dart';
+import 'package:welearn_app/ui/workbench.dart';
 
 /// 冒烟测试：在真实视口下构建整个工作区。
 /// 布局溢出（RenderFlex overflow）会以异常形式抛出并让测试失败，
@@ -38,7 +40,7 @@ void main() {
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: buildTheme(),
-          home: const WorkbenchShell(),
+          home: const Workbench(),
         ),
       ),
     );
@@ -46,126 +48,16 @@ void main() {
     return state;
   }
 
-  AppState loggedIn() => AppState()
-    ..loggedIn = true
-    ..courses = const [Course(cid: '566', name: '新起点大学英语综合教程1', percent: 24)]
-    ..currentCid = '566';
-
-  testWidgets('桌面 1440x900 不溢出', (tester) async {
-    await desktop(() async {
-      await pumpAt(tester, const Size(1440, 900));
-      expect(find.text('WeLearn 助手'), findsOneWidget);
-      // 未登录时顶栏是「登录」，登录后才是「开始运行 · N 节」
-      expect(find.text('登录'), findsWidgets);
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('紧凑 1100x800 不溢出', (tester) async {
-    await desktop(() async {
-      await pumpAt(tester, const Size(1100, 800));
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('移动 390x844 不溢出', (tester) async {
-    await desktop(() async {
-      await pumpAt(tester, const Size(390, 844));
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('已登录：顶栏三个控件同高且中心线一致', (tester) async {
-    await desktop(() async {
-      await pumpAt(tester, const Size(1440, 900), seed: loggedIn());
-
-      final chip = tester.getRect(find.byKey(const Key('account-chip')));
-      final gear = tester.getRect(find.byKey(const Key('toolbar-settings')));
-      final run = tester.getRect(find.byKey(const Key('toolbar-run')));
-
-      expect(chip.height, Tokens.controlHeight);
-      expect(gear.height, Tokens.controlHeight);
-      expect(run.height, Tokens.controlHeight);
-
-      expect(chip.center.dy, closeTo(gear.center.dy, 0.5));
-      expect(run.center.dy, closeTo(gear.center.dy, 0.5));
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('工具栏与侧栏控件同高（桌面密度下不被压矮）', (tester) async {
-    await desktop(() async {
-      await pumpAt(tester, const Size(1440, 900), seed: loggedIn());
-
-      final search = tester.getRect(find.byKey(const Key('queue-search')));
-      final rescan = tester.getRect(find.byKey(const Key('sidebar-rescan')));
-      final card = tester.getRect(find.byKey(const Key('course-card')));
-
-      expect(search.height, Tokens.controlHeight);
-      expect(rescan.height, Tokens.controlHeight);
-
-      // 左右边距必须一致，否则按钮会比卡片宽出一圈
-      expect(rescan.left, card.left);
-      expect(rescan.right, card.right);
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('已登录：可从账号菜单退出登录并清空会话', (tester) async {
-    await desktop(() async {
-      final state = await pumpAt(
-        tester,
-        const Size(1440, 900),
-        seed: loggedIn(),
-      );
-
-      await tester.tap(find.byKey(const Key('account-chip')));
-      await tester.pumpAndSettle();
-      expect(find.text('退出登录'), findsOneWidget);
-
-      await tester.tap(find.text('退出登录'));
-      await tester.pumpAndSettle();
-
-      // 二次确认，避免误点就把 Cookie 丢掉
-      await tester.tap(find.widgetWithText(FilledButton, '退出登录'));
-      await tester.pumpAndSettle();
-
-      expect(state.loggedIn, isFalse);
-      expect(state.courses, isEmpty);
-      expect(state.currentCid, isNull);
-      expect(find.text('登录'), findsWidgets);
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('移动端账号菜单里也有退出登录', (tester) async {
-    await desktop(() async {
-      final state = await pumpAt(
-        tester,
-        const Size(390, 844),
-        seed: loggedIn(),
-      );
-
-      await tester.tap(find.byKey(const Key('mobile-account')));
-      await tester.pumpAndSettle();
-      expect(find.text('退出登录'), findsOneWidget);
-      await tester.tap(find.text('退出登录'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, '退出登录'));
-      await tester.pumpAndSettle();
-
-      expect(state.loggedIn, isFalse);
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  // ── 移动端信息架构（MOBILE_UX 批次 A） ──────────────────
-  AppState mobileState({bool running = false}) {
+  AppState seeded({bool selected = true}) {
     final state = AppState()
       ..loggedIn = true
-      ..courses = const [Course(cid: '566', name: '新起点大学英语综合教程1', percent: 42)]
-      ..currentCid = '566'
-      ..units = const [CourseUnit(index: 2, unitName: 'Unit 3', name: '', visible: true)]
+      ..courses = const [Course(cid: '1001', name: '大学英语综合教程 1', percent: 42)]
+      ..currentCid = '1001'
+      ..meta = const CourseMeta(cid: '1001', uid: '10000001', classid: '100001')
+      ..units = const [
+        CourseUnit(index: 0, unitName: 'Unit 01', name: '', visible: true),
+        CourseUnit(index: 2, unitName: 'Unit 03', name: '', visible: true),
+      ]
       ..lessons = const [
         Lesson(
           unitIndex: 2,
@@ -185,95 +77,218 @@ void main() {
           learnTime: '',
           crateLabel: '-',
         ),
+        Lesson(
+          unitIndex: 0,
+          scoid: 'm-1-1-1',
+          location: 'Unit 1 > Text A: Reading Comprehension',
+          visible: true,
+          complete: true,
+          learnTime: '00:06:12',
+          crateLabel: '100',
+        ),
       ];
-    if (running) {
-      state
-        ..running = true
-        ..currentScoid = 'm-1-3-1'
-        ..currentElapsed = 72
-        ..currentWait = 360
-        ..currentHeartbeats = 2
-        ..runTotal = 2
-        ..runDone = 0;
+    if (selected) {
+      state.selectedScoids.addAll(['m-1-3-1', 'm-1-3-2']);
     }
     return state;
   }
 
-  testWidgets('移动端运行中：运行卡有倒计时与队列位置', (tester) async {
+  testWidgets('桌面 1440x900：三段导航与面板空态，无溢出', (tester) async {
     await desktop(() async {
-      await pumpAt(tester, const Size(390, 844), seed: mobileState(running: true));
+      await pumpAt(tester, const Size(1440, 900));
 
-      expect(find.byKey(const Key('mobile-run-card')), findsOneWidget);
-      expect(find.text('剩余'), findsOneWidget);
-      expect(find.textContaining('第 1/2 节'), findsOneWidget);
-      expect(find.text('心跳 2'), findsOneWidget);
+      expect(find.byKey(const Key('nav-dashboard')), findsOneWidget);
+      expect(find.byKey(const Key('nav-tasks')), findsOneWidget);
+      expect(find.byKey(const Key('nav-settings')), findsOneWidget);
+      expect(find.text('还没有登录'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
 
-  testWidgets('移动端空闲：折叠为下一节预览', (tester) async {
+  testWidgets('紧凑 1100x800 无溢出', (tester) async {
     await desktop(() async {
-      await pumpAt(tester, const Size(390, 844), seed: mobileState());
-      expect(find.byKey(const Key('mobile-idle-card')), findsOneWidget);
-      expect(find.textContaining('下一节'), findsOneWidget);
+      await pumpAt(tester, const Size(1100, 800), seed: seeded());
       expect(tester.takeException(), isNull);
     });
   });
 
-  testWidgets('移动端点行弹出小节详情', (tester) async {
+  testWidgets('移动 390x844：底部导航与面板，无溢出', (tester) async {
     await desktop(() async {
-      await pumpAt(tester, const Size(390, 844), seed: mobileState());
+      await pumpAt(tester, const Size(390, 844), seed: seeded());
 
-      await tester.tap(find.text('Unit 3 > Warm-up Activities: Matching').first);
+      expect(find.byKey(const Key('bottom-nav-dashboard')), findsOneWidget);
+      expect(find.byKey(const Key('bottom-nav-tasks')), findsOneWidget);
+      expect(find.byKey(const Key('bottom-nav-settings')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('桌面点导航切到任务页，参数在页面内而不是弹窗', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(1440, 900), seed: seeded());
+
+      await tester.tap(find.byKey(const Key('nav-tasks')));
       await tester.pumpAndSettle();
 
-      expect(find.text('m-1-3-1'), findsOneWidget);
-      expect(find.text('尚未解析，运行到本节时会解析题目'), findsOneWidget);
-      expect(find.byKey(const Key('run-single')), findsOneWidget);
-      expect(find.text('只跑这一节'), findsOneWidget);
+      expect(find.text('运行参数'), findsOneWidget);
+      expect(find.text('每节等待'), findsOneWidget);
+      expect(find.text('目标正确率'), findsOneWidget);
+      expect(find.text('跳过口语小节'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
 
-  testWidgets('单节运行只把目标小节放进队列', (tester) async {
+  testWidgets('移动端底部导航切到设置页', (tester) async {
     await desktop(() async {
-      final state = mobileState();
-      expect(state.runQueue().length, 2);
-      expect(state.runQueue(only: state.lessons.first).length, 1);
-      expect(state.runQueue(only: state.lessons.first).single.scoid, 'm-1-3-1');
-    });
-  });
+      await pumpAt(tester, const Size(390, 844), seed: seeded());
 
-  testWidgets('移动端 0 待处理：底栏说明原因且空态可重新扫描', (tester) async {
-    await desktop(() async {
-      final state = AppState()
-        ..loggedIn = true
-        ..courses = const [Course(cid: '566', name: '新起点大学英语综合教程1', percent: 100)]
-        ..currentCid = '566';
-
-      await pumpAt(tester, const Size(390, 844), seed: state);
-
-      expect(find.text('队列为空，先重新扫描'), findsWidgets);
-      expect(find.text('重新扫描'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  testWidgets('移动端单元条可分单元筛选', (tester) async {
-    await desktop(() async {
-      final state = mobileState()
-        ..units = const [
-          CourseUnit(index: 0, unitName: 'Unit 1', name: '', visible: true),
-          CourseUnit(index: 2, unitName: 'Unit 3', name: '', visible: true),
-        ];
-
-      await pumpAt(tester, const Size(390, 844), seed: state);
-      expect(find.text('U3 · 2'), findsOneWidget);
-
-      await tester.tap(find.text('U3 · 2'));
+      await tester.tap(find.byKey(const Key('bottom-nav-settings')));
       await tester.pumpAndSettle();
-      expect(state.selectedUnit, 2);
+
+      expect(find.text('关闭窗口时'), findsOneWidget);
+      expect(find.text('更换账号'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets('任务页：点行切换勾选，摘要随之变化', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      await tester.tap(find.byKey(const Key('nav-tasks')));
+      await tester.pumpAndSettle();
+
+      expect(state.selectedScoids.length, 2);
+      expect(find.text('已选 2 节'), findsWidgets);
+
+      await tester.tap(find.text('Warm-up Activities: Matching'));
+      await tester.pumpAndSettle();
+
+      expect(state.selectedScoids.length, 1);
+      expect(state.selectedScoids.contains('m-1-3-1'), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('任务页：单元组头三态，一次勾选整单元', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(
+        tester,
+        const Size(1440, 900),
+        seed: seeded(selected: false),
+      );
+      await tester.tap(find.byKey(const Key('nav-tasks')));
+      await tester.pumpAndSettle();
+
+      expect(state.unitSelection(2), isFalse);
+
+      // 点 Unit 3 组头里的复选框：整单元一次勾选。
+      // 单元条 chip 现在也叫 "Unit 3"，所以按语义标签精确定位组头那个。
+      final groupCheckbox = find.byWidgetPredicate(
+        (w) => w is AppCheckbox && w.label == '全选 Unit 3',
+      );
+      expect(groupCheckbox, findsOneWidget);
+      await tester.tap(groupCheckbox);
+      await tester.pumpAndSettle();
+
+      expect(state.unitSelection(2), isTrue);
+      expect(state.selectedScoids.length, 2);
+
+      // 取消其中一行后，组头应变成"部分选中"
+      await tester.tap(find.text('Warm-up Activities: Matching'));
+      await tester.pumpAndSettle();
+      expect(state.unitSelection(2), isNull);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('设置页：关闭行为可切换并写回状态', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      await tester.tap(find.byKey(const Key('nav-settings')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('最小化到托盘'));
+      await tester.pumpAndSettle();
+
+      expect(state.closeAction, 'tray');
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  test('预计耗时按已选节数计算', () {
+    final state = seeded(selected: false);
+    // 默认 300–480 等待、3–8 间隔：平均 390 + 5
+    expect(state.estimateSeconds(2), 2 * (390 + 5));
+
+    state.selectedScoids.addAll(['m-1-3-1']);
+    expect(state.remainingEstimate, 395);
+  });
+
+  test('单节运行只把目标小节放进队列', () {
+    final state = seeded();
+    expect(state.runQueue().length, 2);
+    expect(state.runQueue(only: state.lessons.first).length, 1);
+    expect(state.runQueue(only: state.lessons.first).single.scoid, 'm-1-3-1');
+  });
+
+  testWidgets('扫描中：标题行与列表都有进度文字，扫描按钮禁用', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      state
+        ..scanning = true
+        ..scanStage = '第 3 单元：18 小节';
+      state.notifyListeners();
+      // 进度条是无限动画，这里只能用单帧 pump，不能用 pumpAndSettle
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('正在扫描课程结构…'), findsWidgets);
+      expect(find.text('第 3 单元：18 小节'), findsWidgets);
+      expect(find.text('请勿重复扫描'), findsWidgets);
+      final button = find.widgetWithText(OutlinedButton, '扫描中…');
+      expect(button, findsWidgets);
+      expect(tester.widget<OutlinedButton>(button.first).onPressed, isNull);
+
+      await tester.tap(find.byKey(const Key('nav-tasks')));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('正在扫描课程结构…'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('手机扫描横幅在 390 宽下不溢出', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final state = await pumpAt(tester, const Size(390, 844), seed: seeded());
+      state
+        ..scanning = true
+        ..scanStage = '第 3 单元：18 小节';
+      state.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('正在扫描课程结构…'), findsWidgets);
+      expect(find.text('已用时 00:00'), findsWidgets);
+      // 窄屏只留计时，避免右侧两行小字把阶段文字挤掉
+      expect(find.text('请勿重复扫描'), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('安卓设置页显示后台运行，不显示托盘选项', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await pumpAt(tester, const Size(390, 844), seed: seeded());
+      await tester.tap(find.byKey(const Key('bottom-nav-settings')));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('保持后台运行'), findsOneWidget);
+      expect(find.text('任务栏常驻'), findsOneWidget);
+      expect(find.text('权限申请'), findsOneWidget);
+      expect(find.text('关闭窗口时'), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

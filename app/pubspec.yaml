@@ -1,7 +1,7 @@
 name: welearn_app
 description: "WE Learn 学习助手（桌面与安卓）"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: ^3.13.7
@@ -9,9 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_inappwebview: 6.2.0-beta.3
   html: ^0.15.4
   path_provider: ^2.1.4
   system_tray: ^2.0.3
+  url_launcher: ^6.3.2
   window_manager: 0.4.3
 
 dev_dependencies:
