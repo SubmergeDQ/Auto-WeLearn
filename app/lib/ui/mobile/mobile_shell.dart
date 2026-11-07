@@ -817,15 +817,21 @@ void showLessonSheet(BuildContext context, Lesson lesson) {
             SizedBox(
               height: Tokens.tapMin,
               width: double.infinity,
-              child: OutlinedButton(
-                onPressed: null,
-                child: const Text('只跑这一节（暂未支持）'),
+              child: FilledButton(
+                key: const Key('run-single'),
+                onPressed: state.running
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        state.startRun(only: lesson);
+                      },
+                child: Text(_singleLabel(status)),
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              '整队列运行时会包含本节；单节运行需要引擎提供入口，尚未实现。',
-              style: TextStyle(fontSize: 11, color: Tokens.textTertiary, height: 1.5),
+            Text(
+              state.running ? '正在运行，先停止后再单独运行本节' : '只提交这一节，队列里的其它小节不受影响',
+              style: const TextStyle(fontSize: 11, color: Tokens.textTertiary, height: 1.5),
             ),
           ],
         ),
@@ -975,8 +981,14 @@ class _LogChip extends StatelessWidget {
   }
 }
 
-Future<void> _confirmStop(BuildContext context, AppState state) async {
-  final ok = await showDialog<bool>(
+/// 单节按钮文案：已完成的叫「重跑」，失败的叫「重试」
+String _singleLabel(LessonStatus status) => switch (status) {
+  LessonStatus.done => '重跑本节',
+  LessonStatus.failed => '重试本节',
+  _ => '只跑这一节',
+};
+
+Future<void> _confirmStop(BuildContext context, AppState state) async {  final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       backgroundColor: Tokens.surface,

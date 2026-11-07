@@ -1000,6 +1000,28 @@ class _CurrentCard extends StatelessWidget {
               const SizedBox(width: 18),
               _Meta(label: '状态', value: state.statusOf(l.scoid).label),
               const Spacer(),
+              if (!state.running)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: TextButton(
+                    key: const Key('desktop-run-single'),
+                    onPressed: () => state.startRun(only: l),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 26),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    child: Text(
+                      state.statusOf(l.scoid) == LessonStatus.done
+                          ? '重跑本节'
+                          : '只跑本节',
+                    ),
+                  ),
+                ),
               StatusPill(state.statusOf(l.scoid)),
             ],
           ),

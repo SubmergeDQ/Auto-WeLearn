@@ -229,8 +229,18 @@ void main() {
 
       expect(find.text('m-1-3-1'), findsOneWidget);
       expect(find.text('尚未解析，运行到本节时会解析题目'), findsOneWidget);
-      expect(find.text('只跑这一节（暂未支持）'), findsOneWidget);
+      expect(find.byKey(const Key('run-single')), findsOneWidget);
+      expect(find.text('只跑这一节'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('单节运行只把目标小节放进队列', (tester) async {
+    await desktop(() async {
+      final state = mobileState();
+      expect(state.runQueue().length, 2);
+      expect(state.runQueue(only: state.lessons.first).length, 1);
+      expect(state.runQueue(only: state.lessons.first).single.scoid, 'm-1-3-1');
     });
   });
 

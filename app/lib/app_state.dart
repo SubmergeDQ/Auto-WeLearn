@@ -43,6 +43,9 @@ class AppState extends ChangeNotifier {
   String? lastError;
   List<Course> courses = const [];
   String? currentCid;
+
+  /// 上次选择/运行的课程，登录后自动回到这门课
+  String? lastCid;
   CourseMeta? meta;
   List<CourseUnit> units = const [];
   List<Lesson> lessons = const [];
@@ -148,6 +151,7 @@ class AppState extends ChangeNotifier {
       final data =
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final cookie = data['cookie'] as String?;
+      lastCid = data['lastCid'] as String?;
       final s = data['settings'];
       if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
       notifyListeners();
@@ -164,7 +168,11 @@ class AppState extends ChangeNotifier {
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/app_state.json');
       await file.writeAsString(
-        jsonEncode({'cookie': cookie, 'settings': settings.toJson()}),
+        jsonEncode({
+          'cookie': cookie,
+          'settings': settings.toJson(),
+          if (lastCid != null) 'lastCid': lastCid,
+        }),
       );
     } catch (_) {
       // 写盘失败不影响使用
@@ -199,7 +207,9 @@ class AppState extends ChangeNotifier {
       await _persist(cookieText);
 
       if (currentCid == null && list.isNotEmpty) {
-        await loadCourse(list.first.cid);
+        // 优先回到上次跑的那门课；找不到（换号/课程被移除）再退回第一门
+        final preferred = list.any((c) => c.cid == lastCid) ? lastCid! : list.first.cid;
+        await loadCourse(preferred);
       }
       return true;
     } on AppException catch (e) {
@@ -249,11 +259,13 @@ class AppState extends ChangeNotifier {
   // ── 课程与扫描 ───────────────────────────────────────
   Future<void> loadCourse(String cid, {bool rescan = true}) async {
     currentCid = cid;
+    lastCid = cid;
     units = const [];
     lessons = const [];
     statuses.clear();
     results.clear();
     notifyListeners();
+    unawaited(_persist(_cookie));
 
     try {
       final m = await _api.getCourseMeta(cid);
@@ -285,12 +297,18 @@ class AppState extends ChangeNotifier {
   }
 
   // ── 运行 ─────────────────────────────────────────────
-  void startRun() {
+  /// 本次要跑的队列。默认整条待处理队列；传 [only] 时只跑这一节（可重跑已完成的节）。
+  List<Lesson> runQueue({Lesson? only}) => only != null ? <Lesson>[only] : candidates;
+
+  void startRun({Lesson? only}) {
     if (running) return;
     final m = meta;
-    if (m == null) return;
+    if (m == null) {
+      addLog('warn', '还没有扫描完成，先重新扫描');
+      return;
+    }
 
-    final queue = candidates;
+    final queue = runQueue(only: only);
     if (queue.isEmpty) {
       addLog('warn', '没有待处理的小节');
       return;
@@ -301,7 +319,10 @@ class AppState extends ChangeNotifier {
     runDone = 0;
     _token = CancelToken();
     notifyListeners();
-    addLog('info', '开始运行 ${queue.length} 节');
+    addLog(
+      'info',
+      only == null ? '开始运行 ${queue.length} 节' : '只运行本节：${shortLocation(only)}',
+    );
     unawaited(_loop(m, queue));
   }
 
