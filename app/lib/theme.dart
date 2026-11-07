@@ -31,6 +31,16 @@ class Tokens {
   /// 三者高度不一致时，即使 Row 居中也会显得参差。
   static const controlHeight = 32.0;
 
+  // ── 移动端专用 ────────────────────────────────────────
+  /// 手机最小触控高度（Material 建议 44–48）
+  static const tapMin = 44.0;
+
+  /// 两行文本的队列行高
+  static const mobileRowHeight = 64.0;
+
+  /// 运行卡展开高度（折叠态 44）
+  static const runCardHeight = 108.0;
+
   static const gap4 = 4.0;
   static const gap8 = 8.0;
   static const gap12 = 12.0;

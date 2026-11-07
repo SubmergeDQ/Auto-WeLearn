@@ -3,19 +3,12 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../core/models.dart';
 import '../theme.dart';
+import 'app_scope.dart';
+import 'dialogs.dart';
+import 'mobile/mobile_shell.dart';
 import 'widgets.dart';
 
-/// 通过 InheritedNotifier 分发状态，避免引入额外状态管理依赖
-class AppScope extends InheritedNotifier<AppState> {
-  const AppScope({super.key, required AppState state, required super.child})
-    : super(notifier: state);
-
-  static AppState of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
-    assert(scope != null, 'AppScope 未挂载');
-    return scope!.notifier!;
-  }
-}
+export 'app_scope.dart';
 
 class WorkbenchShell extends StatelessWidget {
   const WorkbenchShell({super.key});
@@ -25,7 +18,7 @@ class WorkbenchShell extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final state = AppScope.of(context);
-        if (constraints.maxWidth < 760) return const _MobileShell();
+        if (constraints.maxWidth < 760) return const MobileShell();
         return _DesktopShell(
           compact: constraints.maxWidth < 1180,
           state: state,
@@ -144,7 +137,7 @@ class _TopBar extends StatelessWidget {
             FilledButton(
               key: const Key('toolbar-run'),
               style: toolbarFilled(),
-              onPressed: state.busy ? null : () => _showLoginDialog(context),
+              onPressed: state.busy ? null : () => showLoginDialog(context),
               child: Text(state.busy ? '连接中…' : '登录'),
             )
           else ...[
@@ -154,7 +147,7 @@ class _TopBar extends StatelessWidget {
               key: const Key('toolbar-settings'),
               icon: Icons.tune,
               tooltip: '运行设置',
-              onTap: () => _showSettings(context),
+              onTap: () => showRunSettings(context),
             ),
             const SizedBox(width: 8),
             if (state.running)
@@ -206,7 +199,7 @@ class _AccountChip extends StatelessWidget {
       ),
       onSelected: (value) async {
         if (value == '__logout__') {
-          if (await _confirmLogout(context)) await state.logout();
+          if (await confirmLogout(context)) await state.logout();
           return;
         }
         if (value == '__rescan__') {
@@ -676,7 +669,7 @@ class _QueuePane extends StatelessWidget {
                     action: state.loggedIn
                         ? null
                         : TextButton(
-                            onPressed: () => _showLoginDialog(context),
+                            onPressed: () => showLoginDialog(context),
                             child: const Text('去登录'),
                           ),
                   )
@@ -1144,449 +1137,6 @@ class _EmptyHint extends StatelessWidget {
             style: const TextStyle(fontSize: 12, color: Tokens.textTertiary),
           ),
           ?action,
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// 移动端：单列
-// ═══════════════════════════════════════════════════════════
-class _MobileShell extends StatelessWidget {
-  const _MobileShell();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = AppScope.of(context);
-    final course = state.currentCourse;
-
-    return Scaffold(
-      backgroundColor: Tokens.surface,
-      appBar: AppBar(
-        backgroundColor: Tokens.surface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        titleSpacing: 16,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              course?.name ?? 'WeLearn 助手',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            Text(
-              state.loggedIn ? '${state.candidates.length} 节待处理' : '未登录',
-              style: const TextStyle(fontSize: 11, color: Tokens.textTertiary),
-            ),
-          ],
-        ),
-        actions: [
-          if (state.loggedIn)
-            PopupMenuButton<String>(
-              key: const Key('mobile-account'),
-              tooltip: '账号',
-              icon: const Icon(Icons.account_circle_outlined, size: 20),
-              onSelected: (v) async {
-                if (v != 'logout') return;
-                if (await _confirmLogout(context)) await state.logout();
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.logout_rounded,
-                        size: 16,
-                        color: Tokens.danger,
-                      ),
-                      SizedBox(width: 8),
-                      Text('退出登录', style: TextStyle(color: Tokens.danger)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          IconButton(
-            onPressed: () => _showLogsSheet(context),
-            icon: const Icon(Icons.receipt_long_outlined, size: 20),
-            tooltip: '日志',
-          ),
-          IconButton(
-            onPressed: () => _showSettings(context),
-            icon: const Icon(Icons.tune, size: 20),
-            tooltip: '设置',
-          ),
-        ],
-      ),
-      body: state.loggedIn
-          ? ListView.builder(
-              itemCount: state.visibleLessons.length,
-              itemBuilder: (context, i) {
-                final lesson = state.visibleLessons[i];
-                return LessonTile(
-                  index: i + 1,
-                  lesson: lesson,
-                  status: state.statusOf(lesson.scoid),
-                  selected: state.selectedScoid == lesson.scoid,
-                  onTap: () => state.select(lesson.scoid),
-                );
-              },
-            )
-          : Center(
-              child: FilledButton(
-                onPressed: () => _showLoginDialog(context),
-                child: const Text('登录'),
-              ),
-            ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        decoration: const BoxDecoration(
-          color: Tokens.surface,
-          border: Border(top: BorderSide(color: Tokens.border)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ThinBar(value: state.progress, height: 3),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${state.doneCount} 已完成 · ${state.candidates.length} 待处理',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Tokens.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              state.running
-                  ? OutlinedButton(
-                      onPressed: state.stopRun,
-                      child: const Text('停止'),
-                    )
-                  : FilledButton(
-                      onPressed: state.candidates.isEmpty
-                          ? null
-                          : state.startRun,
-                      child: const Text('开始'),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showLogsSheet(BuildContext context) {
-    final state = AppScope.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Tokens.surface,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        builder: (context, controller) => ListView.builder(
-          controller: controller,
-          padding: const EdgeInsets.all(12),
-          itemCount: state.logs.length,
-          itemBuilder: (context, i) {
-            final log = state.logs[i];
-            return LogLine(
-              time: log.clock,
-              level: log.level,
-              message: log.message,
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// 对话框与设置
-// ═══════════════════════════════════════════════════════════
-/// 退出登录前的确认。Cookie 需要手动重新粘贴，误点一次成本不低。
-Future<bool> _confirmLogout(BuildContext context) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: Tokens.surface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Tokens.radiusCard),
-      ),
-      title: const Text(
-        '退出登录',
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-      content: const SizedBox(
-        width: 360,
-        child: Text(
-          '退出后会清除本机保存的 Cookie 与当前课程数据，下次需要重新粘贴 Cookie 才能登录。运行设置会保留。',
-          style: TextStyle(
-            fontSize: 12.5,
-            color: Tokens.textSecondary,
-            height: 1.5,
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('退出登录'),
-        ),
-      ],
-    ),
-  );
-  return ok ?? false;
-}
-
-Future<void> _showLoginDialog(BuildContext context) async {
-  final state = AppScope.of(context);
-  final controller = TextEditingController();
-
-  await showDialog<void>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setLocal) => AlertDialog(
-        backgroundColor: Tokens.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Tokens.radiusCard),
-        ),
-        title: const Text(
-          '登录 WE Learn',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-        content: SizedBox(
-          width: 460,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Tokens.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLines: 5,
-                style: const TextStyle(fontSize: 12, height: 1.4),
-                decoration: const InputDecoration(
-                  hintText: 'acw_tc=...; area=dbC; .AspNet.Cookies=...',
-                  hintStyle: TextStyle(
-                    fontSize: 11.5,
-                    color: Tokens.textTertiary,
-                  ),
-                ),
-              ),
-              if (state.lastError != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  state.lastError!,
-                  style: const TextStyle(fontSize: 11.5, color: Tokens.danger),
-                ),
-              ],
-              const SizedBox(height: 10),
-              const Text(
-                '账号密码登录暂不支持（平台使用 PKCE 流程，改版风险高）。',
-                style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: state.busy
-                ? null
-                : () async {
-                    final ok = await state.login(controller.text);
-                    if (!context.mounted) return;
-                    if (ok) {
-                      Navigator.pop(context);
-                    } else {
-                      setLocal(() {});
-                    }
-                  },
-            child: Text(state.busy ? '连接中…' : '登录'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-Future<void> _showSettings(BuildContext context) async {
-  final state = AppScope.of(context);
-  var draft = state.settings;
-
-  await showDialog<void>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        backgroundColor: Tokens.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Tokens.radiusCard),
-        ),
-        title: const Text(
-          '运行设置',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _RangeField(
-                label: '每节等待（秒）',
-                min: 30,
-                max: 900,
-                range: draft.waitMin.toDouble().clamp(30, 900),
-                range2: draft.waitMax.toDouble().clamp(30, 900),
-                onChange: (a, b) => setState(
-                  () => draft = draft.copyWith(waitMin: a, waitMax: b),
-                ),
-              ),
-              _RangeField(
-                label: '目标正确率（%）',
-                min: 0,
-                max: 100,
-                range: draft.rateMin.toDouble(),
-                range2: draft.rateMax.toDouble(),
-                onChange: (a, b) => setState(
-                  () => draft = draft.copyWith(rateMin: a, rateMax: b),
-                ),
-              ),
-              _RangeField(
-                label: '节间间隔（秒）',
-                min: 0,
-                max: 60,
-                range: draft.intervalMin.toDouble(),
-                range2: draft.intervalMax.toDouble(),
-                onChange: (a, b) => setState(
-                  () => draft = draft.copyWith(intervalMin: a, intervalMax: b),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: draft.skipOralLesson,
-                onChanged: (v) =>
-                    setState(() => draft = draft.copyWith(skipOralLesson: v)),
-                title: const Text('跳过口语小节', style: TextStyle(fontSize: 12.5)),
-                subtitle: const Text(
-                  '按小节名识别，重新扫描后生效',
-                  style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '口语/录音类题目默认不提交（解析层已跳过）。',
-                style: TextStyle(fontSize: 11, color: Tokens.textTertiary),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await state.saveSettings(draft);
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _RangeField extends StatelessWidget {
-  const _RangeField({
-    required this.label,
-    required this.min,
-    required this.max,
-    required this.range,
-    required this.range2,
-    required this.onChange,
-  });
-
-  final String label;
-  final double min;
-  final double max;
-  final double range;
-  final double range2;
-  final void Function(int a, int b) onChange;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = range < range2 ? range : range2;
-    final end = range < range2 ? range2 : range;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Tokens.textSecondary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${start.round()} – ${end.round()}',
-                style: monoStyle(size: 11.5, color: Tokens.textPrimary),
-              ),
-            ],
-          ),
-          RangeSlider(
-            values: RangeValues(start, end),
-            min: min,
-            max: max,
-            divisions: (max - min).round(),
-            activeColor: Tokens.accent,
-            inactiveColor: Tokens.mutedSoft,
-            labels: RangeLabels('${start.round()}', '${end.round()}'),
-            onChanged: (v) => onChange(v.start.round(), v.end.round()),
-          ),
         ],
       ),
     );

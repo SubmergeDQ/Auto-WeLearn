@@ -158,4 +158,112 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  // ── 移动端信息架构（MOBILE_UX 批次 A） ──────────────────
+  AppState mobileState({bool running = false}) {
+    final state = AppState()
+      ..loggedIn = true
+      ..courses = const [Course(cid: '566', name: '新起点大学英语综合教程1', percent: 42)]
+      ..currentCid = '566'
+      ..units = const [CourseUnit(index: 2, unitName: 'Unit 3', name: '', visible: true)]
+      ..lessons = const [
+        Lesson(
+          unitIndex: 2,
+          scoid: 'm-1-3-1',
+          location: 'Unit 3 > Warm-up Activities: Matching',
+          visible: true,
+          complete: false,
+          learnTime: '',
+          crateLabel: '-',
+        ),
+        Lesson(
+          unitIndex: 2,
+          scoid: 'm-1-3-2',
+          location: 'Unit 3 > Warm-up Activities: Conversation',
+          visible: true,
+          complete: false,
+          learnTime: '',
+          crateLabel: '-',
+        ),
+      ];
+    if (running) {
+      state
+        ..running = true
+        ..currentScoid = 'm-1-3-1'
+        ..currentElapsed = 72
+        ..currentWait = 360
+        ..currentHeartbeats = 2
+        ..runTotal = 2
+        ..runDone = 0;
+    }
+    return state;
+  }
+
+  testWidgets('移动端运行中：运行卡有倒计时与队列位置', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(390, 844), seed: mobileState(running: true));
+
+      expect(find.byKey(const Key('mobile-run-card')), findsOneWidget);
+      expect(find.text('剩余'), findsOneWidget);
+      expect(find.textContaining('第 1/2 节'), findsOneWidget);
+      expect(find.text('心跳 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('移动端空闲：折叠为下一节预览', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(390, 844), seed: mobileState());
+      expect(find.byKey(const Key('mobile-idle-card')), findsOneWidget);
+      expect(find.textContaining('下一节'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('移动端点行弹出小节详情', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(390, 844), seed: mobileState());
+
+      await tester.tap(find.text('Unit 3 > Warm-up Activities: Matching').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('m-1-3-1'), findsOneWidget);
+      expect(find.text('尚未解析，运行到本节时会解析题目'), findsOneWidget);
+      expect(find.text('只跑这一节（暂未支持）'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('移动端 0 待处理：底栏说明原因且空态可重新扫描', (tester) async {
+    await desktop(() async {
+      final state = AppState()
+        ..loggedIn = true
+        ..courses = const [Course(cid: '566', name: '新起点大学英语综合教程1', percent: 100)]
+        ..currentCid = '566';
+
+      await pumpAt(tester, const Size(390, 844), seed: state);
+
+      expect(find.text('队列为空，先重新扫描'), findsWidgets);
+      expect(find.text('重新扫描'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('移动端单元条可分单元筛选', (tester) async {
+    await desktop(() async {
+      final state = mobileState()
+        ..units = const [
+          CourseUnit(index: 0, unitName: 'Unit 1', name: '', visible: true),
+          CourseUnit(index: 2, unitName: 'Unit 3', name: '', visible: true),
+        ];
+
+      await pumpAt(tester, const Size(390, 844), seed: state);
+      expect(find.text('U3 · 2'), findsOneWidget);
+
+      await tester.tap(find.text('U3 · 2'));
+      await tester.pumpAndSettle();
+      expect(state.selectedUnit, 2);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -175,6 +175,9 @@ class LessonTile extends StatelessWidget {
     required this.status,
     required this.selected,
     required this.onTap,
+    this.height = 56,
+    this.maxLines = 1,
+    this.showChevron = false,
   });
 
   final int index;
@@ -182,6 +185,9 @@ class LessonTile extends StatelessWidget {
   final LessonStatus status;
   final bool selected;
   final VoidCallback onTap;
+  final double height;
+  final int maxLines;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +201,7 @@ class LessonTile extends StatelessWidget {
         onTap: onTap,
         hoverColor: Tokens.mutedSoft.withValues(alpha: 0.6),
         child: Container(
-          height: 56,
+          height: height,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             border: Border(
@@ -220,7 +226,7 @@ class LessonTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   lesson.location,
-                  maxLines: 1,
+                  maxLines: maxLines,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
@@ -243,6 +249,10 @@ class LessonTile extends StatelessWidget {
                   child: StatusPill(status),
                 ),
               ),
+              if (showChevron) ...[
+                const SizedBox(width: 2),
+                const Icon(Icons.chevron_right, size: 18, color: Tokens.borderStrong),
+              ],
             ],
           ),
         ),

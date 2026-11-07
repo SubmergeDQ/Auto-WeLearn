@@ -57,6 +57,10 @@ class AppState extends ChangeNotifier {
   int currentElapsed = 0;
   int currentWait = 0;
   int currentHeartbeats = 0;
+
+  /// 本次运行的队列规模与已完成数（移动端「第 n/总 节」用）
+  int runTotal = 0;
+  int runDone = 0;
   CancelToken? _token;
   RunSettings settings = const RunSettings();
   String filter = 'all'; // all | pending | failed
@@ -293,6 +297,8 @@ class AppState extends ChangeNotifier {
     }
 
     running = true;
+    runTotal = queue.length;
+    runDone = 0;
     _token = CancelToken();
     notifyListeners();
     addLog('info', '开始运行 ${queue.length} 节');
@@ -337,6 +343,7 @@ class AppState extends ChangeNotifier {
 
         results[lesson.scoid] = result;
         statuses[lesson.scoid] = result.status;
+        runDone++;
         addLog(
           result.status == LessonStatus.done
               ? 'done'
