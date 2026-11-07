@@ -35,6 +35,15 @@
 
    > 出包后建议核一次权限：`aapt dump permissions app-release.apk | grep INTERNET`。
 
+4. **桌面托盘依赖两个插件**（只在 Windows 生效，Android 不受影响）
+   - `window_manager 0.4.3`：拦截关闭按钮、隐藏/显示窗口。**不能升到 0.6.x**——那是基于
+     nativeapi 的重写，旧 API 移到了 `window_manager/legacy.dart`，直接升会编译不过
+   - `system_tray 2.0.3`：托盘图标与右键菜单。国内镜像里 `tray_manager` 的归档地址是坏的（404），
+     所以选 `system_tray`（依赖只有 flutter/path/uuid）
+   - 托盘图标：`app/assets/tray.ico`（`windows/runner/resources/app_icon.ico` 的副本），
+     运行时按「exe 目录/data/flutter_assets/assets/tray.ico」读取
+   - 排查关闭行为：`%TEMP%\welearn_close.log` 会记录 `preventClose` / `tray ready` / `onWindowClose`
+
 3. **代理环境变量会污染 `flutter test`**
    环境里同时存在 `HTTP_PROXY` 与 `http_proxy`，会让 flutter_tester 的本地 WebSocket 走代理而失败。
    跑测试前先删掉这些变量：
@@ -44,7 +53,6 @@
    ```
 
 ## 三、构建命令
-
 ```powershell
 # 1. 同步到英文路径
 cd D:\黄译\桌面\Project\Github\Myself\Auto-WeLearn\app

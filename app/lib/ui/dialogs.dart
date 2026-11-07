@@ -25,7 +25,11 @@ Future<void> showLoginDialog(BuildContext context) async {
           compact
               ? '先在手机浏览器登录 welearn.sflep.com，复制 Cookie，再点下面的按钮读取。'
               : '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。',
-          style: const TextStyle(fontSize: 12, color: Tokens.textSecondary, height: 1.5),
+          style: const TextStyle(
+            fontSize: 12,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
         ),
         const SizedBox(height: 12),
         if (!showRaw) ...[
@@ -58,7 +62,9 @@ Future<void> showLoginDialog(BuildContext context) async {
                 summary!,
                 style: TextStyle(
                   fontSize: 11.5,
-                  color: summary!.startsWith('已读取') ? Tokens.success : Tokens.warning,
+                  color: summary!.startsWith('已读取')
+                      ? Tokens.success
+                      : Tokens.warning,
                   height: 1.4,
                 ),
               ),
@@ -67,7 +73,10 @@ Future<void> showLoginDialog(BuildContext context) async {
             alignment: Alignment.centerLeft,
             child: TextButton(
               onPressed: () => setLocal(() => showRaw = true),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 36),
+              ),
               child: const Text('手动粘贴', style: TextStyle(fontSize: 12)),
             ),
           ),
@@ -86,19 +95,33 @@ Future<void> showLoginDialog(BuildContext context) async {
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: () => setLocal(() => showRaw = false),
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 36),
+                ),
                 child: const Text('改用剪贴板读取', style: TextStyle(fontSize: 12)),
               ),
             ),
         ],
         if (state.lastError != null) ...[
           const SizedBox(height: 8),
-          Text(state.lastError!, style: const TextStyle(fontSize: 11.5, color: Tokens.danger, height: 1.4)),
+          Text(
+            state.lastError!,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: Tokens.danger,
+              height: 1.4,
+            ),
+          ),
         ],
         const SizedBox(height: 6),
         const Text(
           '账号密码登录暂不支持（平台使用 PKCE 流程，改版风险高）。',
-          style: TextStyle(fontSize: 11, color: Tokens.textTertiary, height: 1.4),
+          style: TextStyle(
+            fontSize: 11,
+            color: Tokens.textTertiary,
+            height: 1.4,
+          ),
         ),
       ],
     );
@@ -116,11 +139,15 @@ Future<void> showLoginDialog(BuildContext context) async {
       isScrollControlled: true,
       backgroundColor: Tokens.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(Tokens.radiusCard)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Tokens.radiusCard),
+        ),
       ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setLocal) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: SafeArea(
             top: false,
             child: Padding(
@@ -131,8 +158,10 @@ Future<void> showLoginDialog(BuildContext context) async {
                 children: [
                   const _SheetHandle(),
                   const SizedBox(height: 8),
-                  const Text('登录 WE Learn',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Text(
+                    '登录 WE Learn',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 12),
                   body(setLocal),
                   const SizedBox(height: 16),
@@ -159,11 +188,19 @@ Future<void> showLoginDialog(BuildContext context) async {
       builder: (context, setLocal) => AlertDialog(
         backgroundColor: Tokens.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-        title: const Text('登录 WE Learn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '登录 WE Learn',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         content: SizedBox(width: 460, child: body(setLocal)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: state.busy ? null : () => submit(dialogContext),
             child: Text(state.busy ? '连接中…' : '登录'),
@@ -189,17 +226,29 @@ Future<bool> confirmLogout(BuildContext context) async {
     builder: (context) => AlertDialog(
       backgroundColor: Tokens.surface,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-      title: const Text('退出登录', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tokens.radiusCard),
+      ),
+      title: const Text(
+        '退出登录',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
       content: const SizedBox(
         width: 360,
         child: Text(
           '退出后会清除本机保存的 Cookie 与当前课程数据，下次需要重新粘贴 Cookie 才能登录。运行设置会保留。',
-          style: TextStyle(fontSize: 12.5, color: Tokens.textSecondary, height: 1.5),
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Tokens.danger),
           onPressed: () => Navigator.pop(context, true),
@@ -249,7 +298,9 @@ Future<void> showRunSettings(BuildContext context) async {
                   max: 900,
                   range: draft.waitMin.toDouble().clamp(30, 900),
                   range2: draft.waitMax.toDouble().clamp(30, 900),
-                  onChange: (a, b) => setLocal(() => draft = draft.copyWith(waitMin: a, waitMax: b)),
+                  onChange: (a, b) => setLocal(
+                    () => draft = draft.copyWith(waitMin: a, waitMax: b),
+                  ),
                 ),
                 _RangeField(
                   label: '目标正确率（%）',
@@ -257,7 +308,9 @@ Future<void> showRunSettings(BuildContext context) async {
                   max: 100,
                   range: draft.rateMin.toDouble(),
                   range2: draft.rateMax.toDouble(),
-                  onChange: (a, b) => setLocal(() => draft = draft.copyWith(rateMin: a, rateMax: b)),
+                  onChange: (a, b) => setLocal(
+                    () => draft = draft.copyWith(rateMin: a, rateMax: b),
+                  ),
                 ),
                 _RangeField(
                   label: '节间间隔（秒）',
@@ -265,12 +318,16 @@ Future<void> showRunSettings(BuildContext context) async {
                   max: 60,
                   range: draft.intervalMin.toDouble(),
                   range2: draft.intervalMax.toDouble(),
-                  onChange: (a, b) => setLocal(() => draft = draft.copyWith(intervalMin: a, intervalMax: b)),
+                  onChange: (a, b) => setLocal(
+                    () =>
+                        draft = draft.copyWith(intervalMin: a, intervalMax: b),
+                  ),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: draft.skipOralLesson,
-                  onChanged: (v) => setLocal(() => draft = draft.copyWith(skipOralLesson: v)),
+                  onChanged: (v) =>
+                      setLocal(() => draft = draft.copyWith(skipOralLesson: v)),
                   title: const Text('跳过口语小节', style: TextStyle(fontSize: 12.5)),
                   subtitle: const Text(
                     '按小节名识别，重新扫描后生效',
@@ -296,7 +353,9 @@ Future<void> showRunSettings(BuildContext context) async {
       isScrollControlled: true,
       backgroundColor: Tokens.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(Tokens.radiusCard)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Tokens.radiusCard),
+        ),
       ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setLocal) => SafeArea(
@@ -309,7 +368,10 @@ Future<void> showRunSettings(BuildContext context) async {
               children: [
                 const _SheetHandle(),
                 const SizedBox(height: 8),
-                const Text('运行设置', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text(
+                  '运行设置',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 12),
                 form(setLocal),
                 const SizedBox(height: 16),
@@ -320,7 +382,9 @@ Future<void> showRunSettings(BuildContext context) async {
                         ? null
                         : () async {
                             await state.saveSettings(draft);
-                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                            if (sheetContext.mounted) {
+                              Navigator.pop(sheetContext);
+                            }
                           },
                     child: Text(state.running ? '运行中不可修改' : '保存'),
                   ),
@@ -340,11 +404,19 @@ Future<void> showRunSettings(BuildContext context) async {
       builder: (context, setLocal) => AlertDialog(
         backgroundColor: Tokens.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Tokens.radiusCard)),
-        title: const Text('运行设置', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '运行设置',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         content: SizedBox(width: 420, child: form(setLocal)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: state.running
                 ? null
@@ -407,10 +479,18 @@ class _RangeField extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Tokens.textSecondary)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Tokens.textSecondary,
+                ),
+              ),
               const Spacer(),
-              Text('${start.round()} – ${end.round()}',
-                  style: monoStyle(size: 11.5, color: Tokens.textPrimary)),
+              Text(
+                '${start.round()} – ${end.round()}',
+                style: monoStyle(size: 11.5, color: Tokens.textPrimary),
+              ),
             ],
           ),
           RangeSlider(
@@ -427,4 +507,106 @@ class _RangeField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 关闭窗口时的选择结果
+class CloseDecision {
+  const CloseDecision({required this.toTray, required this.remember});
+  final bool toTray;
+  final bool remember;
+}
+
+/// 点关闭按钮后的询问：退出应用 / 最小化到托盘继续运行。
+/// 返回 null 表示取消（窗口保持打开）。
+Future<CloseDecision?> showCloseDialog(BuildContext context) async {
+  final state = AppScope.of(context);
+  var remember = false;
+
+  return showDialog<CloseDecision>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setLocal) => AlertDialog(
+        backgroundColor: Tokens.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '关闭 WeLearn 助手',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: SizedBox(
+          width: 430,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                state.running
+                    ? '当前有任务在运行。最小化到托盘可以让它继续；退出应用会中断本节（已完成的节保留）。'
+                    : '要退出应用，还是缩小到托盘继续运行？',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Tokens.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '托盘图标在任务栏右下角，右键可以重新打开或退出。',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Tokens.textTertiary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: () => setLocal(() => remember = !remember),
+                borderRadius: BorderRadius.circular(Tokens.radiusControl),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: remember,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (v) => setLocal(() => remember = v ?? false),
+                    ),
+                    const SizedBox(width: 4),
+                    const Expanded(
+                      child: Text(
+                        '下次不再询问（记住本次选择）',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(
+              context,
+              CloseDecision(toTray: false, remember: remember),
+            ),
+            style: TextButton.styleFrom(foregroundColor: Tokens.danger),
+            child: const Text('关闭应用'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              CloseDecision(toTray: true, remember: remember),
+            ),
+            child: const Text('最小化到托盘'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

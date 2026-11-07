@@ -1,36 +1,58 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
+import 'desktop_shell.dart';
 import 'theme.dart';
 import 'ui/shell.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const WeLearnApp());
-}
 
-class WeLearnApp extends StatefulWidget {
-  const WeLearnApp({super.key});
+  final state = AppState();
+  final navigatorKey = GlobalKey<NavigatorState>();
 
-  @override
-  State<WeLearnApp> createState() => _WeLearnAppState();
-}
+  if (Platform.isWindows) {
+    await windowManager.ensureInitialized();
+    const options = WindowOptions(
+      size: Size(1280, 840),
+      minimumSize: Size(1024, 640),
+      center: true,
+      title: 'WeLearn 助手',
+    );
+    await windowManager.waitUntilReadyToShow(options, () async {
+      // 拦下关闭按钮，改成「退出 / 最小化到托盘」的询问
+      await windowManager.setPreventClose(true);
+      await windowManager.show();
+      await windowManager.focus();
+    });  }
 
-class _WeLearnAppState extends State<WeLearnApp> {
-  final AppState _state = AppState();
+  runApp(WeLearnApp(state: state, navigatorKey: navigatorKey));
 
-  @override
-  void dispose() {
-    _state.dispose();
-    super.dispose();
+  if (Platform.isWindows) {
+    await DesktopShell.init(state: state, navigatorKey: navigatorKey);
   }
+}
+
+class WeLearnApp extends StatelessWidget {
+  const WeLearnApp({
+    super.key,
+    required this.state,
+    required this.navigatorKey,
+  });
+
+  final AppState state;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   Widget build(BuildContext context) {
     return AppScope(
-      state: _state,
+      state: state,
       child: MaterialApp(
         title: 'WeLearn 助手',
+        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: const WorkbenchShell(),

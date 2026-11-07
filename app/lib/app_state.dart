@@ -152,6 +152,7 @@ class AppState extends ChangeNotifier {
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final cookie = data['cookie'] as String?;
       lastCid = data['lastCid'] as String?;
+      closeAction = (data['closeAction'] as String?) ?? 'ask';
       final s = data['settings'];
       if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
       notifyListeners();
@@ -172,11 +173,22 @@ class AppState extends ChangeNotifier {
           'cookie': cookie,
           'settings': settings.toJson(),
           if (lastCid != null) 'lastCid': lastCid,
+          'closeAction': closeAction,
         }),
       );
     } catch (_) {
       // 写盘失败不影响使用
     }
+  }
+
+  /// 关闭窗口时的行为：ask（每次询问）/ tray（最小化到托盘）/ quit（直接退出）
+  String closeAction = 'ask';
+
+  /// 记住关闭方式（桌面端托盘用）
+  Future<void> setCloseAction(String value) async {
+    closeAction = value;
+    notifyListeners();
+    await _persist(_cookie);
   }
 
   Future<void> saveSettings(RunSettings next, {String? cookie}) async {
@@ -208,7 +220,9 @@ class AppState extends ChangeNotifier {
 
       if (currentCid == null && list.isNotEmpty) {
         // 优先回到上次跑的那门课；找不到（换号/课程被移除）再退回第一门
-        final preferred = list.any((c) => c.cid == lastCid) ? lastCid! : list.first.cid;
+        final preferred = list.any((c) => c.cid == lastCid)
+            ? lastCid!
+            : list.first.cid;
         await loadCourse(preferred);
       }
       return true;
@@ -298,7 +312,8 @@ class AppState extends ChangeNotifier {
 
   // ── 运行 ─────────────────────────────────────────────
   /// 本次要跑的队列。默认整条待处理队列；传 [only] 时只跑这一节（可重跑已完成的节）。
-  List<Lesson> runQueue({Lesson? only}) => only != null ? <Lesson>[only] : candidates;
+  List<Lesson> runQueue({Lesson? only}) =>
+      only != null ? <Lesson>[only] : candidates;
 
   void startRun({Lesson? only}) {
     if (running) return;
