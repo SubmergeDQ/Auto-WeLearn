@@ -981,9 +981,9 @@ class _RunPanelState extends State<_RunPanel> {
                 ],
               ),
             ),
-            Switch(
+            CompactSwitch(
               value: _draft.skipOralLesson,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              tooltip: '跳过口语小节',
               onChanged: locked
                   ? null
                   : (v) => _commit(_draft.copyWith(skipOralLesson: v)),

@@ -139,60 +139,79 @@ class _Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logo = _AppLogo(size: collapsed ? 34 : 30);
+    // 展开 / 收起使用同一个尺寸，避免切换时图标突然变大变小
+    final logo = _AppLogo(size: 28);
+
+    final tappable = collapsed
+        ? Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(10),
+              // 收起时 hover 高亮只包住图标本身，不再铺满 64×64 的整块
+              child: Padding(padding: const EdgeInsets.all(4), child: logo),
+            ),
+          )
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(Tokens.radiusControl),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    logo,
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'WeLearn',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
+                          ),
+                          SizedBox(height: 1),
+                          Text(
+                            '学习助手',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Tokens.textTertiary,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.keyboard_double_arrow_left_rounded,
+                      size: 14,
+                      color: Tokens.textTertiary.withValues(alpha: 0.65),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
 
     return Container(
       height: 64,
-      padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 16),
+      padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 10),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Tokens.border)),
       ),
-      child: Tooltip(
-        message: collapsed ? '点击展开侧边栏' : '点击收起侧边栏',
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(Tokens.radiusControl),
-            child: collapsed
-                ? Center(child: logo)
-                : Row(
-                    children: [
-                      logo,
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'WeLearn',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                height: 1.2,
-                              ),
-                            ),
-                            SizedBox(height: 1),
-                            Text(
-                              '学习助手',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: Tokens.textTertiary,
-                                height: 1.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.keyboard_double_arrow_left_rounded,
-                        size: 14,
-                        color: Tokens.textTertiary.withValues(alpha: 0.65),
-                      ),
-                    ],
-                  ),
-          ),
+      child: Center(
+        child: Tooltip(
+          message: collapsed ? '点击展开侧边栏' : '点击收起侧边栏',
+          child: tappable,
         ),
       ),
     );
@@ -216,9 +235,9 @@ class _AppLogo extends StatelessWidget {
         border: Border.all(color: Tokens.border, width: 0.8),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0F101828),
-            blurRadius: 6,
-            offset: Offset(0, 2),
+            color: Color(0x0D101828),
+            blurRadius: 4,
+            offset: Offset(0, 1),
           ),
         ],
       ),

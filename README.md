@@ -2,17 +2,25 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.3**
+当前版本：**1.1.4**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.3.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.3.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.3-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.3-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.3.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.3.apk) | 通用包，versionName 1.1.3 / versionCode 6，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.4.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.4.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.4-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.4-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.4.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.4.apk) | 通用包，versionName 1.1.4 / versionCode 7，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装。
+
+### 1.1.4 更新要点
+
+- 新增「保存登录状态」开关（默认开启）：从托盘完全退出后再次打开会自动恢复上次登录；只有保存的凭据被平台判定失效时才提示重新登录，网络异常不会清除登录信息。
+- 修复三个区间滑条的端点无法完全重合：按下即锁定拖动端点，两个点靠近时也能精确选中，重合后可整体平移。
+- 区间两端完全相等时，等待时长 / 正确率 / 节间间隔取固定值，不再在区间内随机。
+- 「跳过口语小节」开关改为紧凑尺寸，与运行参数行保持一致。
+- 侧边栏应用图标缩小到统一尺寸，展开与收起状态大小一致，hover 高亮贴合图标。
 
 ### 1.1.3 更新要点
 
@@ -52,6 +60,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 - 内置浏览器直接打开 WE Learn 真实登录页，账号密码只在平台页面输入，不经过本工具的输入框。
 - 也支持粘贴浏览器 Cookie 登录；Cookie 只保存在本机应用数据目录，不会上传到任何服务器。
+- 默认开启「保存登录状态」：从托盘完全退出后再次打开会自动恢复上次登录；只有保存的凭据被平台判定失效时才提示重新登录，可在设置里关闭。
 - 登录后自动读取课程列表与学生主页头像；头像拉取失败时回退为课程首字占位，可手动刷新。
 - 登录态失效时会在设置页给出提示，并提供「强制清除会话凭据」，避免残留失效 Cookie。
 
@@ -168,9 +177,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.3.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.3-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.3.apk` | Android 通用包，versionName 1.1.3 / versionCode 6，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.1.4.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.1.4-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.1.4.apk` | Android 通用包，versionName 1.1.4 / versionCode 7，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 
@@ -225,7 +234,7 @@ Flutter 的 exe 只是启动器，缺少同目录的 DLL 和 `data` 会直接启
 1.1.3 已修复：旧会话残留在 WebView 里会让平台直接跳回学生主页并被误判为已登录。现在打开登录页前会先清空浏览器数据，并给初始跳转留出 2 秒缓冲。
 
 **为什么双击图标没有打开新窗口？**  
-应用是单实例的：已有窗口在运行时，再次启动只会聚焦已有窗口。如果旧版仍在运行，请先等任务结束并关闭旧版，再启动 1.1.3。
+应用是单实例的：已有窗口在运行时，再次启动只会聚焦已有窗口。如果旧版仍在运行，请先等任务结束并关闭旧版，再启动 1.1.4。
 
 **Cookie 会被上传吗？**  
 不会。Cookie 只写入本机应用数据目录，所有请求都从本机直接发往平台；更新检查只读取 GitHub 的公开版本信息。

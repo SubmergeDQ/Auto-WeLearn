@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 /// 当前应用版本。与 pubspec.yaml 的 version 保持一致。
-const String appVersion = '1.1.3';
+const String appVersion = '1.1.4';
 
 /// 默认更新源。用户可在设置里改成任意公开 GitHub 仓库链接。
 const String defaultRepoUrl = 'https://github.com/SubmergeDQ/Auto-WeLearn';

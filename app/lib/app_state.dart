@@ -156,6 +156,9 @@ class AppState extends ChangeNotifier {
   /// 上次检查 GitHub 更新的时间，用来做「每天最多自动检查一次」的节流
   DateTime? lastUpdateCheckAt;
 
+  /// 是否把登录 Cookie 保存到本机。关闭后完全退出应用不会恢复登录态。
+  bool rememberLogin = true;
+
   /// 从 WeLearn 学生主页实时拉取的头像字节；拉不到时界面回退文字占位。
   Uint8List? avatarBytes;
   bool avatarLoading = false;
@@ -379,6 +382,7 @@ class AppState extends ChangeNotifier {
           final data =
               jsonDecode(await file.readAsString()) as Map<String, dynamic>;
 
+          rememberLogin = data['rememberLogin'] as bool? ?? true;
           accounts =
               (data['accounts'] as List?)
                   ?.map(SavedAccount.fromJson)
@@ -387,9 +391,19 @@ class AppState extends ChangeNotifier {
               const [];
           activeAccountId = data['activeAccountId'] as String?;
 
+          // 关闭「保存登录状态」时磁盘上不应留着 Cookie；
+          // 兼容旧版本写下的数据，这里也直接丢掉。
+          if (!rememberLogin) {
+            accounts = const [];
+            activeAccountId = null;
+          }
+
           // 旧版本只存了一个 cookie 字段，这里迁移成账号列表
           final legacy = data['cookie'] as String?;
-          if (accounts.isEmpty && legacy != null && legacy.isNotEmpty) {
+          if (rememberLogin &&
+              accounts.isEmpty &&
+              legacy != null &&
+              legacy.isNotEmpty) {
             final acc = SavedAccount(
               id: 'legacy',
               cookie: legacy,
@@ -433,7 +447,7 @@ class AppState extends ChangeNotifier {
       );
 
       final cookie = _cookie;
-      if (cookie.isNotEmpty) {
+      if (rememberLogin && cookie.isNotEmpty) {
         // 只等会话校验，课程扫描交给页面里的扫描横幅，避免占位页停留过久
         await login(cookie, silent: true, awaitCourse: false);
       }
@@ -451,14 +465,19 @@ class AppState extends ChangeNotifier {
       await file.writeAsString(
         jsonEncode({
           'version': 2,
-          'accounts': accounts.map((a) => a.toJson()).toList(),
-          if (activeAccountId != null) 'activeAccountId': activeAccountId,
+          // 关闭「保存登录状态」时磁盘上不留 Cookie，但本次会话仍保持登录
+          'accounts': rememberLogin
+              ? accounts.map((a) => a.toJson()).toList()
+              : <dynamic>[],
+          if (rememberLogin && activeAccountId != null)
+            'activeAccountId': activeAccountId,
           'settings': settings.toJson(),
           if (lastCid != null) 'lastCid': lastCid,
           'closeAction': closeAction,
           'keepAwake': keepAwake,
           'persistentNotification': persistentNotification,
           'repoUrl': repoUrl,
+          'rememberLogin': rememberLogin,
           'railWidth': railWidth,
           'railCollapsed': railCollapsed,
           if (lastLoginAt != null)
@@ -765,6 +784,17 @@ class AppState extends ChangeNotifier {
   }
 
   // ── 登录 ─────────────────────────────────────────────
+  /// 切换「保存登录状态」。
+  ///
+  /// 关闭后立即把磁盘上的账号 Cookie 抹掉，本次会话仍保持登录；
+  /// 重新打开时把内存中的账号写回磁盘，下次启动即可恢复。
+  Future<void> setRememberLogin(bool value) async {
+    if (rememberLogin == value) return;
+    rememberLogin = value;
+    notifyListeners();
+    await _persist();
+  }
+
   /// [awaitCourse] 为 false 时，登录校验成功后立刻返回，课程扫描放到后台，
   /// 界面可以马上退出「启动恢复」占位并显示扫描进度横幅。
   Future<bool> login(
@@ -806,8 +836,22 @@ class AppState extends ChangeNotifier {
       return true;
     } on AppException catch (e) {
       loggedIn = false;
-      lastError = e.message;
-      addLog('error', e.message);
+      if (silent) {
+        // 启动恢复：只有服务端明确判定凭据失效才提示重新登录；
+        // 网络/代理问题保留保存的 Cookie，下次启动继续尝试。
+        if (e.isAuthExpired) {
+          accounts = const [];
+          activeAccountId = null;
+          await _persist();
+          lastError = '保存的登录信息已失效，请重新登录';
+        } else {
+          lastError = '暂时无法恢复登录：${e.message}';
+        }
+        addLog('warn', lastError!);
+      } else {
+        lastError = e.message;
+        addLog('error', e.message);
+      }
       return false;
     } finally {
       busy = false;

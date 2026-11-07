@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' show Cookie;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:welearn_app/app_state.dart';
@@ -235,6 +237,13 @@ void main() {
       expect(normalizeWaitSeconds(300), 300);
       expect(normalizeWaitSeconds(0), 30);
       expect(normalizeWaitSeconds(1200), 900);
+    });
+
+    test('区间两端相等时取固定值，不再随机', () {
+      final rng = Random(7);
+      expect(pickWait(300, 300, rng), 300);
+      expect(pickCrate(100, 100, rng), 100);
+      expect(pickInterval(0, 0, rng), 0);
     });
   });
 

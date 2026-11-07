@@ -289,6 +289,18 @@ class _AccountGroup extends StatelessWidget {
             ],
           ),
         ),
+        Divider(height: 1, color: Tokens.border.withValues(alpha: 0.6)),
+        SettingRow(
+          title: '保存登录状态',
+          description: '关闭后从托盘完全退出应用不会保留登录信息，下次需要重新登录',
+          trailing: CompactSwitch(
+            value: state.rememberLogin,
+            tooltip: '保存登录状态',
+            onChanged: state.busy
+                ? null
+                : (value) => state.setRememberLogin(value),
+          ),
+        ),
       ],
     );
   }

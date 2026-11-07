@@ -378,6 +378,61 @@ void main() {
     }
   });
 
+  testWidgets('滑条两端可以拖到完全重合', (tester) async {
+    int started = 30;
+    int ended = 60;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setLocal) => Center(
+              child: SizedBox(
+                width: 300,
+                child: RangeField(
+                  label: '每节等待',
+                  min: 30,
+                  max: 900,
+                  start: started,
+                  end: ended,
+                  suffix: ' 秒',
+                  step: 10,
+                  onChanged: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                  onChangeEnd: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final rect = tester.getRect(find.byType(RangeSlider));
+    const inset = 14.0;
+    final usable = rect.width - inset * 2;
+    // 右端点（60 秒）对应位置，往左拖动让两个端点重合到 30 秒
+    final endX = rect.left + inset + (60 - 30) / (900 - 30) * usable;
+    final gesture = await tester.startGesture(
+      Offset(endX, rect.center.dy),
+    );
+    await gesture.moveBy(const Offset(-40, 0));
+    await tester.pump();
+    await gesture.moveBy(Offset(-(usable * 0.5), 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(started, 30);
+    expect(ended, 30, reason: '两个端点应该能完全重合');
+    expect(find.text('30 – 30 秒'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('滑条数值可精确输入，两端允许相等', (tester) async {
     int started = 90;
     int ended = 100;

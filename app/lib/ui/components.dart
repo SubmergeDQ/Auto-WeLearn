@@ -505,6 +505,40 @@ int snapToStep(int value, {required int min, required int max, int step = 1}) {
   return snapped.clamp(min, max);
 }
 
+/// 紧凑开关：默认 Material Switch 在运行参数行里视觉偏大，
+/// 这里固定一个更小的盒子并等比缩放，同时保留 enabled / disabled 样式。
+class CompactSwitch extends StatelessWidget {
+  const CompactSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.tooltip,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = SizedBox(
+      width: 48,
+      height: 30,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+    return tooltip == null
+        ? body
+        : Tooltip(message: tooltip!, child: body);
+  }
+}
+
 /// 区间滑杆：标签、当前值、双端滑块。
 ///
 /// 放在任务页的运行参数里——这些值以前藏在弹窗，改一次要点开两层。
@@ -546,9 +580,20 @@ class RangeField extends StatefulWidget {
   State<RangeField> createState() => _RangeFieldState();
 }
 
+enum _RangeDragMode { start, end, both }
+
 class _RangeFieldState extends State<RangeField> {
   /// 拖动中的原始值；为 null 时显示外部传入的吸附值
   RangeValues? _drag;
+
+  /// 原生 RangeSlider 在两个 thumb 靠得太近时无法分别命中，
+  /// 这里自己接管手势：接近时按距离选端点，完全重合时整体平移。
+  _RangeDragMode? _mode;
+  double _dragStartX = 0;
+  RangeValues _dragStartValues = const RangeValues(0, 0);
+
+  /// 与 Slider 轨道左右内边距保持一致（thumb 半径 + overlay 的一半）
+  static const double _trackInset = 14;
 
   (int, int) _snap(RangeValues v) => (
     snapToStep(
@@ -573,6 +618,100 @@ class _RangeFieldState extends State<RangeField> {
     final lower = a.toDouble().clamp(widget.min, widget.max);
     final upper = b.toDouble().clamp(widget.min, widget.max);
     return lower <= upper ? RangeValues(lower, upper) : RangeValues(upper, lower);
+  }
+
+  /// 按下的位置与值：原生 RangeSlider 在 onDragStart 时才开始选端点，
+  /// 此时手指已经越过 18px 判定阈值，很容易选错相邻端点；这里按下就锁定。
+  RangeValues _downValues = const RangeValues(0, 0);
+
+  /// 拖动手势：离哪个端点近就拖哪个；两端完全重合时整体平移。
+  void _handlePanDown(
+    DragDownDetails details,
+    RangeValues values,
+    double startX,
+    double endX,
+  ) {
+    final x = details.localPosition.dx;
+    final same = (values.end - values.start).abs() < 1e-9;
+    _mode = same || (endX - startX).abs() < 3
+        ? _RangeDragMode.both
+        : ((x - startX).abs() <= (x - endX).abs()
+            ? _RangeDragMode.start
+            : _RangeDragMode.end);
+    _downValues = values;
+  }
+
+  void _beginDrag(DragStartDetails details) {
+    _dragStartX = details.localPosition.dx;
+    _dragStartValues = _downValues;
+    setState(() => _drag = _downValues);
+  }
+
+  void _updateDrag(DragUpdateDetails details, double usable) {
+    final mode = _mode;
+    if (mode == null) return;
+    final span = widget.max - widget.min;
+    final delta = (details.localPosition.dx - _dragStartX) / usable * span;
+    var a = _dragStartValues.start;
+    var b = _dragStartValues.end;
+
+    switch (mode) {
+      case _RangeDragMode.start:
+        a = (a + delta).clamp(widget.min, b);
+      case _RangeDragMode.end:
+        b = (b + delta).clamp(a, widget.max);
+      case _RangeDragMode.both:
+        // 重合时整体平移，区间宽度保持不变
+        final width = b - a;
+        a = (a + delta).clamp(
+          widget.min,
+          math.max(widget.min, widget.max - width),
+        );
+        b = a + width;
+    }
+
+    setState(() => _drag = RangeValues(a, b));
+    final (sa, sb) = _snap(RangeValues(a, b));
+    widget.onChanged(sa, sb);
+  }
+
+  void _endDrag() {
+    if (_mode == null) return;
+    final values = _drag ?? _resting();
+    final (a, b) = _snap(values);
+    setState(() {
+      _drag = null;
+      _mode = null;
+    });
+    widget.onChangeEnd?.call(a, b);
+  }
+
+  void _tapTrack(
+    double x,
+    RangeValues values,
+    double startX,
+    double endX,
+    double Function(double) valueFor,
+  ) {
+    final target = valueFor(x).clamp(widget.min, widget.max);
+    final same = (values.end - values.start).abs() < 1e-9;
+    final RangeValues next;
+    if (same) {
+      // 重合状态点一下：把整个区间移过去
+      next = RangeValues(target, target);
+    } else {
+      final nearStart = (x - startX).abs() <= (x - endX).abs();
+      next = nearStart
+          ? RangeValues(target.clamp(widget.min, values.end), values.end)
+          : RangeValues(values.start, target.clamp(values.start, widget.max));
+    }
+    final (a, b) = _snap(next);
+    setState(() {
+      _drag = null;
+      _mode = null;
+    });
+    widget.onChanged(a, b);
+    widget.onChangeEnd?.call(a, b);
   }
 
   /// 精确输入：两个 thumb 重合时（例如 100–100）无法再用滑块分别选中，
@@ -659,30 +798,53 @@ class _RangeFieldState extends State<RangeField> {
             thumbColor: enabled ? Tokens.accent : Tokens.borderStrong,
             overlayColor: Tokens.accent.withValues(alpha: 0.10),
           ),
-          child: RangeSlider(
-            values: values,
-            min: widget.min,
-            max: widget.max,
-            // 拖动时不提供 divisions，滑块才能连续跟随手指；
-            // 松手后再回到设定档位显示。
-            divisions: _drag == null
-                ? (widget.divisions ??
-                      ((widget.max - widget.min) / widget.step).round())
-                : null,
-            onChanged: enabled
-                ? (v) {
-                    setState(() => _drag = v);
-                    final (a, b) = _snap(v);
-                    widget.onChanged(a, b);
-                  }
-                : null,
-            onChangeEnd: enabled && widget.onChangeEnd != null
-                ? (v) {
-                    final (a, b) = _snap(v);
-                    setState(() => _drag = null);
-                    widget.onChangeEnd!(a, b);
-                  }
-                : null,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final span = widget.max - widget.min;
+              final usable = math.max(1.0, width - 2 * _trackInset);
+              double xFor(double v) =>
+                  _trackInset + (v - widget.min) / span * usable;
+              double valueFor(double x) =>
+                  widget.min + (x - _trackInset) / usable * span;
+              final startX = xFor(values.start);
+              final endX = xFor(values.end);
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapUp: enabled
+                    ? (d) => _tapTrack(
+                        d.localPosition.dx,
+                        values,
+                        startX,
+                        endX,
+                        valueFor,
+                      )
+                    : null,
+                onPanDown: enabled
+                    ? (d) => _handlePanDown(d, values, startX, endX)
+                    : null,
+                onPanStart: enabled ? _beginDrag : null,
+                onPanUpdate: enabled ? (d) => _updateDrag(d, usable) : null,
+                onPanEnd: enabled ? (_) => _endDrag() : null,
+                onPanCancel: enabled ? _endDrag : null,
+                // 原生 RangeSlider 只负责绘制；命中全部交给上面的手势层，
+                // 这样两个 thumb 靠得再近也能按需选中，重合时还能整体拖动。
+                child: IgnorePointer(
+                  child: RangeSlider(
+                    values: values,
+                    min: widget.min,
+                    max: widget.max,
+                    divisions: _drag == null
+                        ? (widget.divisions ??
+                              ((widget.max - widget.min) / widget.step).round())
+                        : null,
+                    onChanged: enabled ? (_) {} : null,
+                    onChangeEnd: null,
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
