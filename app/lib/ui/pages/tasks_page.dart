@@ -88,6 +88,12 @@ class _TasksPageState extends State<TasksPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // 扫描横幅跟面板页一样挂在标题下方通栏显示；
+                  // 之前塞在列表区中央，上下留一大片空白，看着像页面没加载出来。
+                  if (state.scanning) ...[
+                    ScanIndicator(stage: state.scanStage, compact: compact),
+                    const SizedBox(height: 12),
+                  ],
                   _Toolbar(state: state, search: _search, compact: compact),
                 ],
               ),
@@ -467,17 +473,13 @@ class _LessonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 扫描会先清空 lessons，此时列表区就是唯一的主内容：
-    // 用一条带动画和阶段文字的进度卡占住，不要留一片空白让人以为没点上。
+    // 扫描进度已经在标题下的横幅里；列表区只保留空态说明，
+    // 不再把一条进度卡吊在整片空白正中间。
     if (state.scanning) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: SizedBox(
-            width: double.infinity,
-            child: ScanIndicator(stage: state.scanStage, compact: compact),
-          ),
-        ),
+      return const EmptyState(
+        icon: Icons.manage_search_rounded,
+        title: '正在扫描课程结构',
+        body: '单元和小节会在扫描结束后出现在这里。',
       );
     }
 

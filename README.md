@@ -2,17 +2,23 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.0**
+当前版本：**1.1.2**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.0.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.0.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.0-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.0-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.0.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.0.apk) | 通用包，versionName 1.1.0 / versionCode 4，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.2.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.2.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.2-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.2-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.2.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.2.apk) | 通用包，versionName 1.1.2 / versionCode 5，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装。
+
+### 1.1.2 更新要点
+
+- 修复冷启动时先闪一下「未登录」页面再恢复登录态的问题；启动改为应用图标 + 恢复提示占位，会话校验完成后直接进入主界面。
+- 修复任务页扫描时进度条孤零零挂在整片空白中间的问题；扫描横幅与面板页一致放在标题下方通栏，列表区显示扫描空态。
+- 版本号更新到 1.1.2（versionCode 5）。
 
 ### 1.1.0 更新要点
 
@@ -141,9 +147,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.0.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.0-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.0.apk` | Android 通用包，versionName 1.1.0 / versionCode 4，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.1.2.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.1.2-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.1.2.apk` | Android 通用包，versionName 1.1.2 / versionCode 5，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 
@@ -195,7 +201,7 @@ Flutter 的 exe 只是启动器，缺少同目录的 DLL 和 `data` 会直接启
 打开「设置 → 应用 → 权限引导」，依次完成：通知授权、电池无限制、允许自启动，并在最近任务里锁定应用。四项都设置后息屏续跑最稳定。
 
 **为什么双击图标没有打开新窗口？**  
-应用是单实例的：已有窗口在运行时，再次启动只会聚焦已有窗口。如果旧版仍在运行，请先等任务结束并关闭旧版，再启动 1.1.0。
+应用是单实例的：已有窗口在运行时，再次启动只会聚焦已有窗口。如果旧版仍在运行，请先等任务结束并关闭旧版，再启动 1.1.2。
 
 **Cookie 会被上传吗？**  
 不会。Cookie 只写入本机应用数据目录，所有请求都从本机直接发往平台；更新检查只读取 GitHub 的公开版本信息。

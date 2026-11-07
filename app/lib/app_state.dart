@@ -88,6 +88,12 @@ class AppState extends ChangeNotifier {
   // 登录与课程
   bool loggedIn = false;
 
+  /// 启动恢复中：读取本地账号并静默校验登录态。
+  ///
+  /// 这段时间界面不渲染「未登录」空态——冷启动时磁盘与网络都是异步的，
+  /// 先画一帧未登录、再跳到已登录，就会看到明显的闪烁。
+  bool restoring = true;
+
   /// 登录/连接中（登录弹窗用）
   bool busy = false;
 
@@ -350,65 +356,72 @@ class AppState extends ChangeNotifier {
   // ── 持久化 ───────────────────────────────────────────
   Future<void> _loadPersisted() async {
     try {
-      final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/app_state.json');
-      if (await file.exists()) {
-        final data =
-            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      try {
+        final dir = await getApplicationSupportDirectory();
+        final file = File('${dir.path}/app_state.json');
+        if (await file.exists()) {
+          final data =
+              jsonDecode(await file.readAsString()) as Map<String, dynamic>;
 
-        accounts =
-            (data['accounts'] as List?)
-                ?.map(SavedAccount.fromJson)
-                .whereType<SavedAccount>()
-                .toList() ??
-            const [];
-        activeAccountId = data['activeAccountId'] as String?;
+          accounts =
+              (data['accounts'] as List?)
+                  ?.map(SavedAccount.fromJson)
+                  .whereType<SavedAccount>()
+                  .toList() ??
+              const [];
+          activeAccountId = data['activeAccountId'] as String?;
 
-        // 旧版本只存了一个 cookie 字段，这里迁移成账号列表
-        final legacy = data['cookie'] as String?;
-        if (accounts.isEmpty && legacy != null && legacy.isNotEmpty) {
-          final acc = SavedAccount(
-            id: 'legacy',
-            cookie: legacy,
-            savedAt: DateTime.now(),
+          // 旧版本只存了一个 cookie 字段，这里迁移成账号列表
+          final legacy = data['cookie'] as String?;
+          if (accounts.isEmpty && legacy != null && legacy.isNotEmpty) {
+            final acc = SavedAccount(
+              id: 'legacy',
+              cookie: legacy,
+              savedAt: DateTime.now(),
+            );
+            accounts = [acc];
+            activeAccountId = acc.id;
+          }
+
+          lastCid = data['lastCid'] as String?;
+          closeAction = (data['closeAction'] as String?) ?? 'ask';
+          keepAwake = data['keepAwake'] as bool? ?? true;
+          persistentNotification =
+              data['persistentNotification'] as bool? ?? true;
+          repoUrl = data['repoUrl'] as String? ?? defaultRepoUrl;
+          railWidth = ((data['railWidth'] as num?)?.toDouble() ?? 208).clamp(
+            minRailWidth,
+            maxRailWidth,
           );
-          accounts = [acc];
-          activeAccountId = acc.id;
+          railCollapsed = data['railCollapsed'] as bool? ?? false;
+          lastLoginAt = DateTime.tryParse('${data['lastLoginAt']}');
+          final s = data['settings'];
+          if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
+          notifyListeners();
         }
-
-        lastCid = data['lastCid'] as String?;
-        closeAction = (data['closeAction'] as String?) ?? 'ask';
-        keepAwake = data['keepAwake'] as bool? ?? true;
-        persistentNotification =
-            data['persistentNotification'] as bool? ?? true;
-        repoUrl = data['repoUrl'] as String? ?? defaultRepoUrl;
-        railWidth = ((data['railWidth'] as num?)?.toDouble() ?? 208).clamp(
-          minRailWidth,
-          maxRailWidth,
-        );
-        railCollapsed = data['railCollapsed'] as bool? ?? false;
-        lastLoginAt = DateTime.tryParse('${data['lastLoginAt']}');
-        final s = data['settings'];
-        if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
-        notifyListeners();
+      } catch (_) {
+        // 首次启动或缓存损坏，忽略；仍按默认值恢复后台模式
       }
-    } catch (_) {
-      // 首次启动或缓存损坏，忽略；仍按默认值恢复后台模式
-    }
 
-    // 无论有没有缓存文件，都要把当前开关同步给原生服务：
-    // 首次安装时两个开关默认打开，若只靠「有缓存才 apply」，
-    // 界面显示已开启但 Wake Lock / 常驻通知实际没启动。
-    unawaited(
-      MobileBackground.apply(
-        keepAwake: keepAwake,
-        persistent: persistentNotification,
-      ),
-    );
+      // 无论有没有缓存文件，都要把当前开关同步给原生服务：
+      // 首次安装时两个开关默认打开，若只靠「有缓存才 apply」，
+      // 界面显示已开启但 Wake Lock / 常驻通知实际没启动。
+      unawaited(
+        MobileBackground.apply(
+          keepAwake: keepAwake,
+          persistent: persistentNotification,
+        ),
+      );
 
-    final cookie = _cookie;
-    if (cookie.isNotEmpty) {
-      await login(cookie, silent: true);
+      final cookie = _cookie;
+      if (cookie.isNotEmpty) {
+        // 只等会话校验，课程扫描交给页面里的扫描横幅，避免占位页停留过久
+        await login(cookie, silent: true, awaitCourse: false);
+      }
+    } finally {
+      // 无论恢复成功与否都要退出占位：静默登录失败时才会显示真正的未登录空态
+      restoring = false;
+      notifyListeners();
     }
   }
 
@@ -726,7 +739,13 @@ class AppState extends ChangeNotifier {
   }
 
   // ── 登录 ─────────────────────────────────────────────
-  Future<bool> login(String cookieText, {bool silent = false}) async {
+  /// [awaitCourse] 为 false 时，登录校验成功后立刻返回，课程扫描放到后台，
+  /// 界面可以马上退出「启动恢复」占位并显示扫描进度横幅。
+  Future<bool> login(
+    String cookieText, {
+    bool silent = false,
+    bool awaitCourse = true,
+  }) async {
     if (busy) return false;
     busy = true;
     lastError = null;
@@ -752,7 +771,11 @@ class AppState extends ChangeNotifier {
         final preferred = list.any((c) => c.cid == lastCid)
             ? lastCid!
             : list.first.cid;
-        await loadCourse(preferred);
+        if (awaitCourse) {
+          await loadCourse(preferred);
+        } else {
+          unawaited(loadCourse(preferred));
+        }
       }
       return true;
     } on AppException catch (e) {

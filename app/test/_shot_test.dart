@@ -150,6 +150,10 @@ Future<void> _pump(WidgetTester tester, Size size, AppState state) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
+  // 截图用的状态是手工 seed 的，跳过启动恢复占位；
+  // 否则异步恢复没结束时会拍到「正在恢复登录状态」而不是目标页面。
+  state.restoring = false;
+
   await tester.pumpWidget(
     AppScope(
       state: state,

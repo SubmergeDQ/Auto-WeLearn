@@ -35,6 +35,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final state = seed ?? AppState();
+    // 冒烟测试的状态是手工构造的，跳过冷启动占位，直接测真实页面
+    state.restoring = false;
     await tester.pumpWidget(
       AppScope(
         state: state,
@@ -305,6 +307,9 @@ void main() {
       await tester.tap(find.byKey(const Key('nav-tasks')));
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('正在扫描课程结构…'), findsWidgets);
+      // 任务页的扫描横幅在标题下方，列表区只留空态说明，
+      // 不会再出现一条进度卡吊在整片空白中间
+      expect(find.text('正在扫描课程结构'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

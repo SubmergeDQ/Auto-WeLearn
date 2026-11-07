@@ -32,9 +32,16 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+
+    // 冷启动时磁盘读取与会话校验都是异步的，先显示占位，
+    // 避免一帧「未登录」空态闪过去再跳到已登录。
+    if (state.restoring) {
+      return const _BootPlaceholder();
+    }
+
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 900;
-    final state = AppScope.of(context);
 
     final pages = IndexedStack(
       index: _section.index,
@@ -72,6 +79,53 @@ class _WorkbenchState extends State<Workbench> {
           ),
           Expanded(child: pages),
         ],
+      ),
+    );
+  }
+}
+
+/// 启动占位：与应用图标同款视觉，只说明「正在恢复」，不显示任何未登录文案。
+class _BootPlaceholder extends StatelessWidget {
+  const _BootPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Tokens.canvas,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Tokens.border),
+              ),
+              child: Image.asset(
+                'assets/logo.png',
+                filterQuality: FilterQuality.medium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Tokens.accent,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '正在恢复上次的登录状态…',
+              style: TextStyle(fontSize: 12, color: Tokens.textTertiary),
+            ),
+          ],
+        ),
       ),
     );
   }

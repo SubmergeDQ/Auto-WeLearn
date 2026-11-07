@@ -1,7 +1,7 @@
 param(
   [string]$ReleaseDir = (Resolve-Path (Join-Path $PSScriptRoot '..\release\gui-windows')).Path,
-  [string]$OutFile = (Join-Path $PSScriptRoot '..\release\WeLearn-Setup-1.1.0.exe'),
-  [string]$Version = '1.1.0'
+  [string]$OutFile = (Join-Path $PSScriptRoot '..\release\WeLearn-Setup-1.1.2.exe'),
+  [string]$Version = '1.1.2'
 )
 
 $ErrorActionPreference = 'Stop'

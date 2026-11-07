@@ -1,7 +1,7 @@
 name: welearn_app
 description: "WE Learn 学习助手（桌面与安卓）"
 publish_to: 'none'
-version: 1.1.0+4
+version: 1.1.2+5
 
 environment:
   sdk: ^3.13.7
