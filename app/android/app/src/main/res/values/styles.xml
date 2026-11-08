@@ -13,6 +13,8 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- 与 Flutter 侧 Tokens.canvas 一致：页面切换的过渡帧里这层会露出来，
+             用系统默认背景会在深色模式下闪成黑色。 -->
+        <item name="android:windowBackground">#F5F6F8</item>
     </style>
 </resources>

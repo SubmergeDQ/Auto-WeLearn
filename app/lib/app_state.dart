@@ -1133,9 +1133,11 @@ class AppState extends ChangeNotifier {
     } on AppException catch (e) {
       loggedIn = false;
       if (silent) {
-        // 启动恢复：只有服务端明确判定凭据失效才提示重新登录；
-        // 网络/代理问题保留保存的 Cookie，下次启动继续尝试。
-        if (e.isAuthExpired) {
+        // 启动恢复：服务端明确判定凭据失效，或课程接口返回空列表
+        // （Cookie 失效时它通常返回 ret=0 + 空 clist，抛出 badCredentials），
+        // 都应尝试用保存的账号密码自动重登。网络/代理问题保留 Cookie，
+        // 下次启动继续尝试。
+        if (e.isAuthExpired || e.code == AppErrorCode.badCredentials) {
           final saved = activeAccount;
           if (saved != null && saved.hasCredentials) {
             lastError = '登录信息已失效，正在尝试使用保存的账号密码自动登录…';
@@ -1155,10 +1157,11 @@ class AppState extends ChangeNotifier {
     } finally {
       busy = false;
       notifyListeners();
-      // 等 busy 复位后再自动重登，否则内部的 login 会被 busy 挡住
+      // 等 busy 复位后再自动重登，否则内部的 login 会被 busy 挡住。
+      // 自动重登本身失败时不能再排下一次，否则会在后台反复提交密码。
       if (_pendingAutoLogin) {
         _pendingAutoLogin = false;
-        unawaited(_attemptAutoLogin());
+        if (!autoLoginAttempting) unawaited(_attemptAutoLogin());
       }
     }
   }
@@ -1169,6 +1172,22 @@ class AppState extends ChangeNotifier {
       _token = null;
       running = false;
     }
+  }
+
+  /// 用账号密码在后台完成登录，全程不打开浏览器界面。
+  ///
+  /// 成功返回 null；失败返回给用户看的提示。是否保存账号密码由界面层询问。
+  Future<String?> loginWithPassword(String username, String password) async {
+    final user = username.trim();
+    if (user.isEmpty || password.isEmpty) return '请输入账号和密码';
+    if (busy) return '正在登录，请稍候';
+
+    final cookie = await AutoLoginService().login(user, password);
+    if (cookie == null) {
+      return '账号或密码不正确，也可能触发了验证码；请稍后重试，或改用内置浏览器登录';
+    }
+    final ok = await login(cookie, awaitCourse: false);
+    return ok ? null : '登录失败：${lastError ?? '请稍后重试'}';
   }
 
   /// 清空会话相关的界面数据；账号列表由调用方决定保留还是全部删除。

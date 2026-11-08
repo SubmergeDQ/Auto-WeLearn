@@ -97,7 +97,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                               : '到任务页重新扫描一次，就能看到所有小节和待处理数量。')
                                         : (state.autoLoginAttempting
                                               ? '正在用保存的账号密码恢复登录状态，请稍候…'
-                                              : '在设置里用内置浏览器登录 WE Learn，或者粘贴一份 Cookie。登录后才能扫描课程与运行任务。'),
+                                              : '在设置里用账号密码登录 WE Learn，或者粘贴一份 Cookie。登录后才能扫描课程与运行任务。'),
                                     actionLabel: state.loggedIn
                                         ? (state.scanning ? null : '去任务页')
                                         : (state.autoLoginAttempting

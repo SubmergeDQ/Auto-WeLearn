@@ -246,8 +246,8 @@ class _AccountGroup extends StatelessWidget {
                   style: toolbarOutlined(),
                   onPressed: state.running || state.scanning
                       ? null
-                      : () => openBrowserLogin(context),
-                  icon: const Icon(Icons.language_rounded, size: 15),
+                      : () => showPasswordLoginDialog(context),
+                  icon: const Icon(Icons.password_rounded, size: 15),
                   label: const Text('更换账号'),
                 ),
                 OutlinedButton(
@@ -271,12 +271,12 @@ class _AccountGroup extends StatelessWidget {
                   style: toolbarFilled(),
                   onPressed: state.busy || state.autoLoginAttempting
                       ? null
-                      : () => openBrowserLogin(context),
-                  icon: const Icon(Icons.language_rounded, size: 15),
+                      : () => showPasswordLoginDialog(context),
+                  icon: const Icon(Icons.password_rounded, size: 15),
                   label: Text(
                     state.autoLoginAttempting
                         ? '自动登录中…'
-                        : (state.busy ? '连接中…' : '内置浏览器登录'),
+                        : (state.busy ? '连接中…' : '账号密码登录'),
                   ),
                 ),
                 OutlinedButton(
@@ -310,8 +310,8 @@ class _AccountGroup extends StatelessWidget {
               ],
               Text(
                 compact
-                    ? '内置浏览器里直接输入平台账号密码；头像登录时从 WeLearn 读取，可点右侧刷新。'
-                    : '内置浏览器打开真实登录页，账号密码只在平台页面输入；头像从 WeLearn 学生主页实时读取。',
+                    ? '输入平台账号密码即可登录，全程不打开网页；头像登录时从 WeLearn 读取，可点右侧刷新。'
+                    : '账号密码直连平台登录，全程不打开网页；头像从 WeLearn 学生主页实时读取。',
                 style: const TextStyle(
                   fontSize: 10.5,
                   color: Tokens.textTertiary,
@@ -345,7 +345,7 @@ class _AccountGroup extends StatelessWidget {
     if (state.savePassword) {
       return state.activeAccount?.hasCredentials == true
           ? '已记录本机账号密码；Cookie 过期或在别处登录导致失效时，会在后台自动重登'
-          : '尚未记录账号密码；下次通过内置浏览器登录时自动记录，之后可后台自动重登';
+          : '尚未记录账号密码；下次用账号密码登录时自动记录，之后可后台自动重登';
     }
     return '只保存 Cookie；失效后需要手动重新登录';
   }
@@ -376,7 +376,7 @@ class _AccountGroup extends StatelessWidget {
         ),
         SizedBox(height: 10),
         Text(
-          '是否同时记录内置浏览器里输入过的账号密码？记录后，当登录信息在别处失效时会在后台自动重新登录，避免运行中断。账号密码只保存在本机，不会上传。',
+          '是否同时记录登录时输入的账号密码？记录后，当登录信息在别处失效时会在后台自动重新登录，避免运行中断。账号密码只保存在本机，不会上传。',
           style: TextStyle(
             fontSize: 12.5,
             color: Tokens.textSecondary,

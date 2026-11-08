@@ -13,6 +13,15 @@ class ReleaseNote {
 /// 从新到旧排列。
 const List<ReleaseNote> releaseHistory = [
   ReleaseNote(
+    version: '1.1.8',
+    highlights: [
+      '登录改为账号密码直连：输入账号密码后由程序在后台完成平台 SSO 登录并取得 Cookie，全程不打开内置浏览器界面。',
+      '修复保存账号后无法自动恢复登录的问题：修正登录请求的重定向处理，自动重登能真正取回新的 Cookie。',
+      '修复登录完成后偶发的黑色二级页面闪现：页面过渡与安卓窗口背景统一为应用画布色。',
+      '内置浏览器登录保留为备用入口，遇到图形验证码时可从登录弹窗底部进入。',
+    ],
+  ),
+  ReleaseNote(
     version: '1.1.7',
     highlights: [
       '修复单元组头吸顶堆叠：滚动到下一个 Unit 时，上一个 Unit 的组头会自动让位，不会在列表顶端叠在一起。',

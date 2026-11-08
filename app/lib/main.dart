@@ -80,6 +80,9 @@ class WeLearnApp extends StatelessWidget {
         title: 'WeLearn 助手',
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
+        // 页面切换的过渡帧里，窗口底色会露出来。Android 默认是黑窗，
+        // 桌面 WebView 关闭时也会先露出一帧，所以显式指定画布色。
+        color: Tokens.canvas,
         theme: buildTheme(),
         home: const Workbench(),
       ),

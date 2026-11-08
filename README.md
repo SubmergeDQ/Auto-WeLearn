@@ -2,17 +2,24 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.7**
+当前版本：**1.1.8**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.7.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.7.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.7-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.7-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.7.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.7.apk) | 通用包，versionName 1.1.7 / versionCode 10，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.8.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.8.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.8-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.8-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.8.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.8.apk) | 通用包，versionName 1.1.8 / versionCode 11，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装；「设置 → 关于 → 版本更新历史」可离线查看各版本更新内容。
+
+### 1.1.8 更新要点
+
+- 登录改为账号密码直连：输入账号密码后由程序在后台完成平台 SSO 登录并取得 Cookie，全程不打开内置浏览器界面。
+- 修复保存账号后无法自动恢复登录的问题：修正登录请求的重定向处理，自动重登能真正取回新的 Cookie；Cookie 失效表现为「课程列表为空」时也会触发自动重登。
+- 修复登录完成后偶发的黑色二级页面闪现：页面过渡与安卓窗口背景统一为应用画布色。
+- 内置浏览器登录保留为备用入口，遇到图形验证码时可从登录弹窗底部进入。
 
 ### 1.1.7 更新要点
 
@@ -203,9 +210,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.7.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.7-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.7.apk` | Android 通用包，versionName 1.1.7 / versionCode 10，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.1.8.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.1.8-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.1.8.apk` | Android 通用包，versionName 1.1.8 / versionCode 11，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 

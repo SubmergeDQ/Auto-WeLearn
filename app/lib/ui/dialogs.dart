@@ -18,7 +18,7 @@ import 'widgets.dart';
 /// 只显示识别到的项数与前几个名字（截图不会泄露凭据）。
 /// 登录入口。桌面用对话框，手机用底部抽屉。
 ///
-/// [pasteOnly] 为 true 时只显示粘贴方式——设置页把「内置浏览器登录」做成了独立按钮，
+/// [pasteOnly] 为 true 时只显示粘贴方式——设置页把「账号密码登录」做成了独立按钮，
 /// 再在弹窗里放一遍会造成两个入口做同一件事。
 Future<void> showLoginDialog(
   BuildContext context, {
@@ -41,8 +41,8 @@ Future<void> showLoginDialog(
                     ? '先在手机浏览器登录 welearn.sflep.com，复制 Cookie，再点下面的按钮读取。'
                     : '在浏览器登录 welearn.sflep.com，从开发者工具复制 Cookie，粘到下面。')
               : (compact
-                    ? '用内置浏览器登录最省事；也可以先在手机浏览器登录后复制 Cookie。'
-                    : '用内置浏览器登录，或者从开发者工具复制 Cookie 粘贴。'),
+                    ? '用账号密码登录最省事；也可以先在手机浏览器登录后复制 Cookie。'
+                    : '用账号密码登录，或者从开发者工具复制 Cookie 粘贴。'),
           style: const TextStyle(
             fontSize: 12,
             color: Tokens.textSecondary,
@@ -58,11 +58,12 @@ Future<void> showLoginDialog(
               onPressed: state.busy
                   ? null
                   : () async {
-                      final ok = await openBrowserLogin(context);
-                      if (ok && context.mounted) Navigator.pop(context);
+                      // 先关掉当前弹窗，再开账号密码弹窗，避免两层弹窗叠在一起
+                      Navigator.pop(context);
+                      await showPasswordLoginDialog(context);
                     },
-              icon: const Icon(Icons.language_rounded, size: 18),
-              label: const Text('用内置浏览器登录'),
+              icon: const Icon(Icons.password_rounded, size: 18),
+              label: const Text('账号密码登录'),
             ),
           ),
           const SizedBox(height: 12),
@@ -165,11 +166,31 @@ Future<void> showLoginDialog(
         ],
         const SizedBox(height: 6),
         const Text(
-          '账号密码只在平台页面里输入；默认不保存密码，可在登录成功后选择保存。',
+          '账号密码登录全程不打开网页；默认不保存密码，可在登录成功后选择保存。',
           style: TextStyle(
             fontSize: 11,
             color: Tokens.textTertiary,
             height: 1.4,
+          ),
+        ),
+        // 图形验证码 / 风控时账号密码直连会被拒绝，这里留一个网页登录兜底入口
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: state.busy
+                ? null
+                : () async {
+                    Navigator.pop(context);
+                    await openBrowserLogin(context);
+                  },
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 34),
+            ),
+            child: const Text(
+              '遇到验证码？改用内置浏览器登录',
+              style: TextStyle(fontSize: 11.5),
+            ),
           ),
         ),
       ],
@@ -1169,6 +1190,193 @@ Future<void> _runUpdate(BuildContext dialogContext, AppState state) async {
   if (path == null) return;
   if (dialogContext.mounted) Navigator.pop(dialogContext);
   await state.installUpdate(path);
+}
+
+/// 账号密码登录：后台直连平台 SSO 接口换取 Cookie，全程不显示网页。
+///
+/// 登录成功后立即询问是否保存登录信息（账号密码只在本机保存）。
+/// 遇到图形验证码或风控时，可从弹窗里改用内置浏览器登录。
+Future<void> showPasswordLoginDialog(BuildContext context) async {
+  final state = AppScope.of(context);
+  final compact = MediaQuery.sizeOf(context).width < 600;
+  final userCtrl = TextEditingController(
+    text: state.activeAccount?.username ?? '',
+  );
+  final passCtrl = TextEditingController();
+  var busy = false;
+  String? error;
+
+  Future<void> submit(StateSetter setLocal, BuildContext dialogContext) async {
+    final user = userCtrl.text.trim();
+    final pass = passCtrl.text;
+    if (user.isEmpty || pass.isEmpty) {
+      setLocal(() => error = '请输入账号和密码');
+      return;
+    }
+    setLocal(() {
+      busy = true;
+      error = null;
+    });
+    final message = await state.loginWithPassword(user, pass);
+    if (!dialogContext.mounted) return;
+    if (message != null) {
+      setLocal(() {
+        busy = false;
+        error = message;
+      });
+      return;
+    }
+    Navigator.pop(dialogContext);
+    if (context.mounted) {
+      await promptSaveLogin(context, state, username: user, password: pass);
+    }
+  }
+
+  Widget body(StateSetter setLocal, BuildContext dialogContext) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '输入 WE Learn 账号密码，登录在后台完成，不会打开网页。',
+          style: TextStyle(
+            fontSize: 12,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: userCtrl,
+          autofocus: true,
+          enabled: !busy,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(hintText: '账号（手机号或邮箱）'),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: passCtrl,
+          enabled: !busy,
+          obscureText: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => submit(setLocal, dialogContext),
+          decoration: const InputDecoration(hintText: '密码'),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            error!,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: Tokens.danger,
+              height: 1.4,
+            ),
+          ),
+        ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    Navigator.pop(dialogContext);
+                    await openBrowserLogin(context);
+                  },
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 34),
+            ),
+            child: const Text(
+              '遇到验证码？改用内置浏览器登录',
+              style: TextStyle(fontSize: 11.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  try {
+    if (compact) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Tokens.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(Tokens.radiusCard),
+          ),
+        ),
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (ctx, setLocal) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _SheetHandle(),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '账号密码登录',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    body(setLocal, sheetContext),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: Tokens.tapMin,
+                      child: FilledButton(
+                        onPressed: busy
+                            ? null
+                            : () => submit(setLocal, sheetContext),
+                        child: Text(busy ? '登录中…' : '登录'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('账号密码登录'),
+          content: SizedBox(
+            width: 380,
+            child: body(setLocal, dialogContext),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: busy ? null : () => submit(setLocal, dialogContext),
+              child: Text(busy ? '登录中…' : '登录'),
+            ),
+          ],
+        ),
+      ),
+    );
+  } finally {
+    userCtrl.dispose();
+    passCtrl.dispose();
+  }
 }
 
 /// 打开内置浏览器完成登录，成功后直接把 Cookie 交给 [AppState.login]。

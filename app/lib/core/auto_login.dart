@@ -18,7 +18,13 @@ class AutoLoginService {
   final HttpClient _client;
 
   static const _loginEndpoint = 'https://sso.sflep.com/idsvr/account/login';
-  static const _redirectUrl = 'http://welearn.sflep.com/user/loginredirect.aspx';
+
+  /// 登录入口。站点首页的「登录」链接就是这个地址，服务端会 302 到 SSO
+  /// 授权，再转到转交页，最终把本次授权请求挂在 `transfer.html?returnUrl=` 上。
+  /// 这个 returnUrl 就是登录接口要的 rturl，固定写死会返回「无效的返回URL」。
+  static const _entryUrl =
+      'https://welearn.sflep.com/user/prelogin.aspx?'
+      'loginret=http%3a%2f%2fwelearn.sflep.com%2fuser%2floginredirect.aspx';
 
   static const _ua =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -30,16 +36,25 @@ class AutoLoginService {
     final cookies = <String, String>{};
 
     try {
+      // 1) 打开登录入口，拿到本次登录专用的授权回跳地址
+      final entry = await _request(Uri.parse(_entryUrl), cookies: cookies);
+      final rturl = _extractReturnUrl(entry.uri);
+      if (rturl == null) {
+        // 没有走到 SSO 转交页：说明入口本身已是登录态
+        return _hasSession(cookies) ? _cookieHeader(cookies) : null;
+      }
+
+      // 2) 提交账号密码（密码按登录页的前端算法编码）
       final encoded = encodeLoginPassword(password);
       final posted = await _request(
         Uri.parse(_loginEndpoint),
         cookies: cookies,
         method: 'POST',
         body: {
-          'account': username,
+          'account': username.trim(),
           'pwd': encoded.pwd,
           'ts': '${encoded.timestamp}',
-          'rturl': _redirectUrl,
+          'rturl': rturl,
         },
         headers: const {
           'origin': 'https://sso.sflep.com',
@@ -59,10 +74,11 @@ class AutoLoginService {
       final target = decoded['data'];
       if (target is! String || target.isEmpty) return null;
 
-      // data 通常是绝对回跳地址；相对路径按 SSO 站根解析
+      // data 是站点根下的授权回调路径（/connect/authorize/callback?...），
+      // 需拼在 /idsvr 前缀下，跟随它才会把票据落成 WE Learn 的会话 Cookie
       final next = target.contains('://')
           ? Uri.parse(target)
-          : Uri.parse('https://sso.sflep.com/idsvr/').resolve(target);
+          : Uri.parse('https://sso.sflep.com/idsvr$target');
       await _request(next, cookies: cookies);
 
       if (!_hasSession(cookies)) return null;
@@ -72,6 +88,15 @@ class AutoLoginService {
     } finally {
       _client.close(force: true);
     }
+  }
+
+  /// 从转交页 URL 上取回本次授权请求（已解码一次，可直接作为 rturl 提交）。
+  String? _extractReturnUrl(Uri uri) {
+    if (uri.host != 'sso.sflep.com') return null;
+    if (!uri.path.endsWith('transfer.html')) return null;
+    final value = uri.queryParameters['returnUrl'];
+    if (value == null || value.isEmpty) return null;
+    return value;
   }
 
   Future<_HttpResult> _request(
@@ -88,6 +113,10 @@ class AutoLoginService {
 
     for (var hop = 0; hop < 8; hop++) {
       final request = await _client.openUrl(currentMethod, current);
+      // Dart 的 HttpClient 默认会自己跟随重定向，那样就拿不到中间跳转的地址，
+      // 也就取不到 transfer.html 上的 returnUrl。必须关掉，改由下面的循环处理。
+      request.followRedirects = false;
+      request.maxRedirects = 0;
       request.headers
         ..set(HttpHeaders.userAgentHeader, _ua)
         ..set(
