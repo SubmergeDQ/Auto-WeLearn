@@ -978,6 +978,17 @@ class AppState extends ChangeNotifier {
       activeAccountId = accounts[idx].id;
       return;
     }
+
+    // 同一账号重新登录时 Cookie 一定不同。若本机只有这一条保存记录，
+    // 直接把新 Cookie 写进去，保留已记录的账号密码——否则会新增一条
+    // 没有凭据的记录，下次失效后就再也无法自动重登。
+    if (accounts.length == 1 && accounts.first.hasCredentials) {
+      final acc = accounts.first;
+      accounts = [acc.copyWith(cookie: cookieText, savedAt: DateTime.now())];
+      activeAccountId = acc.id;
+      return;
+    }
+
     final acc = SavedAccount(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       cookie: cookieText,
@@ -1042,7 +1053,7 @@ class AppState extends ChangeNotifier {
   /// 只在现有 Cookie 被平台明确判定失效后调用：Cookie 有效时始终先用 Cookie，
   /// 避免每次启动都做一次密码登录而触发平台风控。
   Future<void> _attemptAutoLogin() async {
-    if (autoLoginAttempting || !rememberLogin) return;
+    if (autoLoginAttempting || !rememberLogin || loggedIn) return;
     final acc = activeAccount;
     if (acc == null || !acc.hasCredentials) return;
 
@@ -1054,6 +1065,8 @@ class AppState extends ChangeNotifier {
         acc.username!,
         acc.password!,
       );
+      // 自动重登期间用户可能已经手动登录成功，别再用旧 Cookie 覆盖会话
+      if (loggedIn || !rememberLogin) return;
       if (cookie != null && cookie.isNotEmpty) {
         // 复用当前账号记录，保留 UID 与账号密码，不新增重复账号
         _reuseAccountId = acc.id;
@@ -1062,13 +1075,15 @@ class AppState extends ChangeNotifier {
           lastError = null;
           addLog('info', '已使用保存的账号密码恢复登录');
         }
-      } else {
+      } else if (!loggedIn) {
         lastError = '自动重登失败，请手动登录';
         addLog('warn', lastError!);
       }
     } catch (e) {
-      lastError = '自动重登失败：$e';
-      addLog('warn', lastError!);
+      if (!loggedIn) {
+        lastError = '自动重登失败：$e';
+        addLog('warn', lastError!);
+      }
     } finally {
       _reuseAccountId = null;
       autoLoginAttempting = false;

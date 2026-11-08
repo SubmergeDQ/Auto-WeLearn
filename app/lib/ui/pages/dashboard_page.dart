@@ -320,6 +320,7 @@ class _Metrics extends StatelessWidget {
     final cards = [
       MetricCard(
         label: '已完成',
+        valueSize: 26,
         value: '${state.doneCount}',
         unit: '/ $totalVisible',
         hint: state.currentCourse == null
@@ -330,6 +331,7 @@ class _Metrics extends StatelessWidget {
       ),
       MetricCard(
         label: '待处理',
+        valueSize: 26,
         value: '${state.candidates.length}',
         unit: '节',
         hint: hidden > 0 ? '另有 $hidden 节未解锁' : '全部小节已解锁',
@@ -337,6 +339,7 @@ class _Metrics extends StatelessWidget {
       ),
       MetricCard(
         label: '失败',
+        valueSize: 26,
         value: '${state.failedCount}',
         unit: '节',
         hint: state.failedCount > 0 ? '可在任务页筛选后重试' : '本次没有失败',
@@ -345,6 +348,8 @@ class _Metrics extends StatelessWidget {
       ),
       MetricCard(
         label: '预计剩余',
+        // 时长文本较长，字号收小一点，窄屏上不会缩到看不清
+        valueSize: 22,
         value: humanDuration(state.remainingEstimate),
         hint: '按已选 ${state.selectedCount} 节估算',
         icon: Icons.schedule_outlined,

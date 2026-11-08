@@ -122,6 +122,7 @@ class MetricCard extends StatelessWidget {
     this.hint,
     this.accent,
     this.icon,
+    this.valueSize = 25,
   });
 
   final String label;
@@ -130,6 +131,10 @@ class MetricCard extends StatelessWidget {
   final String? hint;
   final Color? accent;
   final IconData? icon;
+
+  /// 主数值字号：数字类指标用默认值，长时长文本（如「1 小时 56 分」）
+  /// 传更小的字号，避免在窄屏上被 FittedBox 缩得过小。
+  final double valueSize;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +184,7 @@ class MetricCard extends StatelessWidget {
                     value,
                     maxLines: 1,
                     style: monoStyle(
-                      size: 24,
+                      size: valueSize,
                       weight: FontWeight.w600,
                       color: color,
                     ),

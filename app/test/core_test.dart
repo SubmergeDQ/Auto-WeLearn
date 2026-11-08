@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' show Cookie;
@@ -324,46 +325,26 @@ void main() {
     });
   });
 
-  group('自动重登表单解析', () {
-    test('识别账号 / 密码字段并带回隐藏字段', () {
-      final form = findLoginForm('''
-        <form action="/Account/Login?ReturnUrl=%2Fstudent%2F" method="post">
-          <input type="hidden" name="__VIEWSTATE" value="abc">
-          <input type="hidden" name="__EVENTVALIDATION" value="def">
-          <input type="text" name="txtUser" id="txtUser">
-          <input type="password" name="txtPass">
-          <input type="submit" name="btnLogin" value="登录">
-        </form>
-      ''');
-      expect(form, isNotNull);
-      expect(form!.userField, 'txtUser');
-      expect(form.passField, 'txtPass');
-      expect(form.action, '/Account/Login?ReturnUrl=%2Fstudent%2F');
-      expect(form.fields['__VIEWSTATE'], 'abc');
-      expect(form.fields['__EVENTVALIDATION'], 'def');
-      // 提交按钮不参与表单字段
-      expect(form.fields.containsKey('btnLogin'), isFalse);
+  group('自动重登密码编码', () {
+    test('按平台格式拼出时间戳与密码 hex', () {
+      final encoded = encodeLoginPassword(
+        'abc',
+        now: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      );
+      expect(encoded.timestamp, 1700000000033);
+      expect(
+        utf8.decode(base64Decode(encoded.pwd)),
+        '1700000000033*616263',
+      );
     });
 
-    test('邮箱输入框也当作账号', () {
-      final form = findLoginForm(
-        '<form action="/login"><input type="email" name="email">'
-        '<input type="password" name="pwd"></form>',
+    test('非 ASCII 密码按 UTF-8 字节编码', () {
+      final encoded = encodeLoginPassword(
+        '密',
+        now: DateTime.fromMillisecondsSinceEpoch(1700000000000),
       );
-      expect(form?.userField, 'email');
-      expect(form?.passField, 'pwd');
-    });
-
-    test('缺密码框或缺账号框时不返回表单', () {
-      expect(
-        findLoginForm('<form><input type="text" name="q"></form>'),
-        isNull,
-      );
-      expect(
-        findLoginForm('<form><input type="password" name="p"></form>'),
-        isNull,
-      );
-      expect(findLoginForm(''), isNull);
+      final decoded = utf8.decode(base64Decode(encoded.pwd));
+      expect(decoded.split('*').last, 'e5af86');
     });
   });
 

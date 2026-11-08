@@ -1183,7 +1183,9 @@ Future<bool> openBrowserLogin(BuildContext context) async {
     MaterialPageRoute(builder: (_) => const LoginWebPage()),
   );
   if (result == null || result.cookie.isEmpty) return false;
-  final ok = await state.login(result.cookie);
+  // 只等会话校验：课程扫描放到后台，这样「是否保存登录状态」的询问
+  // 在登录成功后立刻弹出，而不是等整门课扫完（慢的时候要几十秒）。
+  final ok = await state.login(result.cookie, awaitCourse: false);
   if (!ok) return false;
 
   final username = result.username;

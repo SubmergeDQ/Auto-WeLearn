@@ -577,7 +577,9 @@ class _LessonList extends StatelessWidget {
     while (i < entries.length) {
       final entry = entries[i];
       if (entry is _UnitEntry) {
-        slivers.add(
+        // 每个单元自成一个 main-axis group：吸顶组头只在本组内钉住，
+        // 组滚动到末尾后自然让位给下一个单元，不会残留在顶端堆叠。
+        final group = <Widget>[
           SliverPersistentHeader(
             pinned: true,
             delegate: _UnitHeaderDelegate(
@@ -592,14 +594,37 @@ class _LessonList extends StatelessWidget {
               ),
             ),
           ),
-        );
+        ];
         i++;
+
+        final lessons = <_LessonEntry>[];
+        while (i < entries.length && entries[i] is _LessonEntry) {
+          lessons.add(entries[i] as _LessonEntry);
+          i++;
+        }
+        if (lessons.isNotEmpty) {
+          group.add(
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _TaskRow(
+                  state: state,
+                  lesson: lessons[index].lesson,
+                  index: lessons[index].index,
+                  compact: compact,
+                ),
+                childCount: lessons.length,
+              ),
+            ),
+          );
+        }
+        slivers.add(SliverMainAxisGroup(slivers: group));
         continue;
       }
 
-      final lessons = <_LessonEntry>[];
+      // 理论上不会走到这里（小节总跟在组头之后），保底按普通列表渲染。
+      final stray = <_LessonEntry>[];
       while (i < entries.length && entries[i] is _LessonEntry) {
-        lessons.add(entries[i] as _LessonEntry);
+        stray.add(entries[i] as _LessonEntry);
         i++;
       }
       slivers.add(
@@ -607,11 +632,11 @@ class _LessonList extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, index) => _TaskRow(
               state: state,
-              lesson: lessons[index].lesson,
-              index: lessons[index].index,
+              lesson: stray[index].lesson,
+              index: stray[index].index,
               compact: compact,
             ),
-            childCount: lessons.length,
+            childCount: stray.length,
           ),
         ),
       );

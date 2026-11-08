@@ -670,7 +670,7 @@ void main() {
         find.text('当前版本 $appVersion · 从新到旧共 ${releaseHistory.length} 个版本'),
         findsOneWidget,
       );
-      expect(find.text('1.1.6'), findsWidgets);
+      expect(find.text('1.1.7'), findsWidgets);
       expect(find.text('当前版本'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
