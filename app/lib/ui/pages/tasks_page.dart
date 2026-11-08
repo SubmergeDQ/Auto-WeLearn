@@ -559,36 +559,90 @@ class _LessonList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            // 手机上列表夹在工具栏与固定操作条之间，留一点底部余量，
-            // 滚到底时最后一行不会被贴得死死的（布局本身是分区，不是浮层遮挡）
-            padding: const EdgeInsets.only(bottom: 8),
-            itemCount: entries.length,
-            itemBuilder: (context, i) {
-              final entry = entries[i];
-              if (entry is _UnitEntry) {
-                return _GroupHeader(
-                  state: state,
-                  entry: entry,
-                  compact: compact,
-                  onToggle: state.filter == 'all' && state.selectedUnit == null
-                      ? () => onToggleUnit(entry.unit.index)
-                      : null,
-                );
-              }
-              final lesson = (entry as _LessonEntry).lesson;
-              return _TaskRow(
-                state: state,
-                lesson: lesson,
-                index: entry.index,
-                compact: compact,
-              );
-            },
-          ),
+          // 单元组头用 SliverPersistentHeader 钉在列表顶端：手机上滑查看
+          // 后面的小节时，始终能知道当前在第几个 Unit。
+          child: CustomScrollView(slivers: _buildSlivers()),
         ),
       ],
     );
   }
+
+  /// 把扁平的 entries 拆成「吸顶组头 + 该单元的小节列表」。
+  ///
+  /// 组头高度与 _GroupHeader 固定高度一致；同一单元的连续小节收进一个
+  /// SliverList，避免逐行 sliver 带来的额外布局开销。
+  List<Widget> _buildSlivers() {
+    final slivers = <Widget>[];
+    var i = 0;
+    while (i < entries.length) {
+      final entry = entries[i];
+      if (entry is _UnitEntry) {
+        slivers.add(
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _UnitHeaderDelegate(
+              extent: compact ? Tokens.tapMin : 36,
+              child: _GroupHeader(
+                state: state,
+                entry: entry,
+                compact: compact,
+                onToggle: state.filter == 'all' && state.selectedUnit == null
+                    ? () => onToggleUnit(entry.unit.index)
+                    : null,
+              ),
+            ),
+          ),
+        );
+        i++;
+        continue;
+      }
+
+      final lessons = <_LessonEntry>[];
+      while (i < entries.length && entries[i] is _LessonEntry) {
+        lessons.add(entries[i] as _LessonEntry);
+        i++;
+      }
+      slivers.add(
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _TaskRow(
+              state: state,
+              lesson: lessons[index].lesson,
+              index: lessons[index].index,
+              compact: compact,
+            ),
+            childCount: lessons.length,
+          ),
+        ),
+      );
+    }
+    // 列表夹在工具栏与固定操作条之间，底部留一点余量，
+    // 滚到底时最后一行不会被贴得死死的（布局本身是分区，不是浮层遮挡）
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 8)));
+    return slivers;
+  }
+}
+
+/// 吸顶组头：高度固定，滚动时始终停在列表顶端。
+class _UnitHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _UnitHeaderDelegate({required this.extent, required this.child});
+
+  final double extent;
+  final Widget child;
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      child;
+
+  @override
+  bool shouldRebuild(_UnitHeaderDelegate oldDelegate) =>
+      oldDelegate.extent != extent || oldDelegate.child != child;
 }
 
 class _GroupHeader extends StatelessWidget {

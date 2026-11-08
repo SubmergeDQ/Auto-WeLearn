@@ -1125,6 +1125,15 @@ class _AboutGroup extends StatelessWidget {
           ),
         ),
         SettingRow(
+          title: '版本更新历史',
+          description: '查看 1.1.0 到 $appVersion 的更新内容，离线也能打开',
+          trailing: TextButton(
+            style: toolbarText(),
+            onPressed: () => showReleaseHistory(context),
+            child: const Text('查看'),
+          ),
+        ),
+        SettingRow(
           title: 'GitHub 仓库',
           description: state.repoUrl,
           trailing: TextButton(

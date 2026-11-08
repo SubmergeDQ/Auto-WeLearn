@@ -2,17 +2,23 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.5**
+当前版本：**1.1.6**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.5.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.5.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.5-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.5-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.5.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.5.apk) | 通用包，versionName 1.1.5 / versionCode 8，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.6.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.6.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.6-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.6-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.6.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.6.apk) | 通用包，versionName 1.1.6 / versionCode 9，含 arm64 / armv7 / x64 |
 
-更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装。
+更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装；「设置 → 关于 → 版本更新历史」可离线查看各版本更新内容。
+
+### 1.1.6 更新要点
+
+- 任务页单元组头吸顶：手机上滑动小节列表时，当前 Unit 固定在列表顶端，随时能看到正在查看哪个单元。
+- 面板 4 个指标卡片的文字字号稍微调大，数值与补充说明更易读；窄屏上的长时长会按卡片宽度等比缩小，不会被截断。
+- 设置页「关于」新增「版本更新历史」入口，按版本倒序展示各版本更新内容，离线也能查看。
 
 ### 1.1.5 更新要点
 
@@ -87,6 +93,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 - 支持按单元筛选、按关键字搜索小节，并显示已完成 / 待处理 / 失败 / 跳过等状态。
 - 每行提供「重跑本节 / 只跑本节」；运行中只读，避免中途改队列。
 - 已完成小节会显示学习时长与状态，避免误选已完成内容。
+- 手机上滑动小节列表时，当前单元组头吸顶显示，随时能看到正在查看哪个 Unit。
 
 ### 运行引擎
 
@@ -109,6 +116,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 ### 更新
 
 - 「设置 → 关于」提供检查更新：读取 GitHub 仓库的最新 Release，与当前版本比较。
+- 「设置 → 关于 → 版本更新历史」按版本倒序展示 1.1.0 以来的更新内容，离线可查看。
 - 发现新版本时自动弹出更新询问，弹窗内展示版本更新内容；点「更新」后弹窗直接显示下载进度，点「后台更新」可关闭弹窗让下载继续，进度同步到手机通知栏 / Windows 任务栏。
 - 仓库固定为 `https://github.com/SubmergeDQ/Auto-WeLearn`，设置页只提供「打开」，不再支持修改。
 - 启动时自动检查，之后每天最多一次；运行期间每 6 小时兜底判断，长时间挂机跨天也能发现新版本。
@@ -124,7 +132,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
   - 桌面端：关闭窗口时询问「每次询问 / 最小化到托盘 / 直接退出」，并支持托盘图标。
   - 手机端：保持后台运行（Wake Lock）与任务栏常驻；权限引导覆盖通知、电池无限制、自启动与最近任务锁定。
 - 数据：清空面板日志与最近结果；查看「会话凭据」并强制清除本机所有账号 Cookie 与内置浏览器数据。
-- 关于：版本号、检查更新、GitHub 仓库链接与开源说明。
+- 关于：版本号、检查更新、版本更新历史、GitHub 仓库链接与开源说明。
 
 ### 桌面端特性
 
@@ -187,9 +195,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.4.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.4-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.4.apk` | Android 通用包，versionName 1.1.4 / versionCode 7，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.1.6.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.1.6-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.1.6.apk` | Android 通用包，versionName 1.1.6 / versionCode 9，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 

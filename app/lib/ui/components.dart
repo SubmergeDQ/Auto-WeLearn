@@ -139,7 +139,7 @@ class MetricCard extends StatelessWidget {
       // 四张卡统一最小高度：hint 有无不会让底边参差。
       // 不用 Row 的 stretch —— 面板在滚动视图里拿到的是无限高度约束。
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 86),
+        constraints: const BoxConstraints(minHeight: 92),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -156,7 +156,7 @@ class MetricCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12.5,
                       color: Tokens.textTertiary,
                       height: 1.2,
                     ),
@@ -165,33 +165,37 @@ class MetricCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Flexible(
-                  child: Text(
+            // 主数值外包一层 FittedBox：字号放大后，窄屏上的长时长
+            // （例如「1 小时 56 分」）会按可用宽度等比缩小，而不是出现省略号。
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
                     value,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: monoStyle(
-                      size: 22,
+                      size: 24,
                       weight: FontWeight.w600,
                       color: color,
                     ),
                   ),
-                ),
-                if (unit != null) ...[
-                  const SizedBox(width: 3),
-                  Text(
-                    unit!,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Tokens.textTertiary,
+                  if (unit != null) ...[
+                    const SizedBox(width: 3),
+                    Text(
+                      unit!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Tokens.textTertiary,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
             if (hint != null) ...[
               const SizedBox(height: 2),
@@ -200,7 +204,7 @@ class MetricCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: Tokens.textTertiary,
                   height: 1.2,
                 ),

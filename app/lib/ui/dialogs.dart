@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../core/browser_login.dart';
+import '../core/changelog.dart';
 import '../core/updater.dart';
 import '../theme.dart';
 import 'app_scope.dart';
@@ -954,6 +955,135 @@ Future<void> showUpdateDialog(BuildContext context) async {
       );
     },
   );
+}
+
+/// 版本更新历史弹窗。
+///
+/// 条目来自 [releaseHistory]，不依赖网络；内容较长时在弹窗内滚动查看。
+Future<void> showReleaseHistory(BuildContext context) async {
+  final size = MediaQuery.sizeOf(context);
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: Tokens.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tokens.radiusCard),
+      ),
+      title: const Text(
+        '版本更新历史',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      content: SizedBox(
+        width: 480,
+        child: ConstrainedBox(
+          // 小屏上给按钮和标题留出空间，内容区自己滚动
+          constraints: BoxConstraints(maxHeight: size.height * 0.62),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '当前版本 $appVersion · 从新到旧共 ${releaseHistory.length} 个版本',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Tokens.textTertiary,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                for (var i = 0; i < releaseHistory.length; i++) ...[
+                  if (i > 0) const Divider(height: 22),
+                  _ReleaseNoteTile(
+                    note: releaseHistory[i],
+                    current: releaseHistory[i].version == appVersion,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('关闭'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// 单个版本的条目：版本号 + 当前版本标记 + 要点列表。
+class _ReleaseNoteTile extends StatelessWidget {
+  const _ReleaseNoteTile({required this.note, required this.current});
+
+  final ReleaseNote note;
+  final bool current;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              note.version,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (current)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Tokens.accentSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  '当前版本',
+                  style: TextStyle(fontSize: 10, color: Tokens.accent),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final line in note.highlights)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    '·',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Tokens.textTertiary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    line,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Tokens.textSecondary,
+                      height: 1.55,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// 下载并安装更新。

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:welearn_app/app_state.dart';
+import 'package:welearn_app/core/changelog.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/theme.dart';
@@ -598,5 +599,75 @@ void main() {
     expect(ended, 100);
     expect(find.text('100 – 100%'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('移动端任务页：单元组头吸顶', (tester) async {
+    await desktop(() async {
+      // 只造一个单元、多条小节，保证组头一开始就在列表顶端，
+      // 向下滚动后仍钉在原位（非吸顶实现会被滚出可视区）。
+      final state = AppState()
+        ..loggedIn = true
+        ..courses = const [
+          Course(cid: '1001', name: '大学英语综合教程 1', percent: 42),
+        ]
+        ..currentCid = '1001'
+        ..meta = const CourseMeta(cid: '1001', uid: '10000001', classid: '100001')
+        ..units = const [
+          CourseUnit(index: 2, unitName: 'Unit 03', name: '', visible: true),
+        ]
+        ..lessons = [
+          for (var i = 0; i < 12; i++)
+            Lesson(
+              unitIndex: 2,
+              scoid: 'm-3-$i',
+              location: 'Unit 3 > Topic $i',
+              visible: true,
+              complete: false,
+              learnTime: '',
+              crateLabel: '-',
+            ),
+        ];
+
+      await pumpAt(tester, const Size(390, 844), seed: state);
+      await tester.tap(find.byKey(const Key('bottom-nav-tasks')));
+      await tester.pumpAndSettle();
+
+      final header = find.byWidgetPredicate(
+        (w) => w is AppCheckbox && w.label == '全选 Unit 3',
+      );
+      final before = tester.getTopLeft(header).dy;
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
+      await tester.pumpAndSettle();
+
+      // 吸顶：组头停在列表顶端，不随内容一起滚走
+      expect(tester.getTopLeft(header).dy, closeTo(before, 1));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('设置页可查看版本更新历史', (tester) async {
+    await desktop(() async {
+      await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      await tester.tap(find.byKey(const Key('nav-settings')));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('版本更新历史'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('查看'));
+      await tester.pumpAndSettle();
+
+      // 版本条目来自内置清单，无需联网
+      expect(
+        find.text('当前版本 $appVersion · 从新到旧共 ${releaseHistory.length} 个版本'),
+        findsOneWidget,
+      );
+      expect(find.text('1.1.6'), findsWidgets);
+      expect(find.text('当前版本'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
