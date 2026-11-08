@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../core/browser_login.dart';
 import '../core/changelog.dart';
+import '../core/release_notes.dart';
 import '../core/updater.dart';
 import '../theme.dart';
 import 'app_scope.dart';
@@ -889,14 +890,7 @@ Future<void> showUpdateDialog(BuildContext context) async {
                   border: Border.all(color: Tokens.border),
                 ),
                 child: SingleChildScrollView(
-                  child: Text(
-                    notes.isEmpty ? '本次更新包含问题修复与体验改进。' : notes,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: Tokens.textSecondary,
-                      height: 1.55,
-                    ),
-                  ),
+                  child: _ReleaseNotesView(notes: notes),
                 ),
               ),
               if (live.downloadingUpdate || live.updateProgress > 0) ...[
@@ -955,6 +949,86 @@ Future<void> showUpdateDialog(BuildContext context) async {
       );
     },
   );
+}
+
+/// 把 Release 正文的 Markdown 渲染成标题、列表与段落。
+class _ReleaseNotesView extends StatelessWidget {
+  const _ReleaseNotesView({required this.notes});
+
+  final String notes;
+
+  static const _bodyStyle = TextStyle(
+    fontSize: 11.5,
+    color: Tokens.textSecondary,
+    height: 1.55,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final blocks = parseReleaseNotes(notes);
+    if (blocks.isEmpty) {
+      return const Text('本次更新包含问题修复与体验改进。', style: _bodyStyle);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < blocks.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+              top: i == 0
+                  ? 0
+                  : (blocks[i].type == NoteBlockType.heading ? 6 : 0),
+            ),
+            child: _block(blocks[i]),
+          ),
+      ],
+    );
+  }
+
+  Widget _block(NoteBlock block) {
+    switch (block.type) {
+      case NoteBlockType.heading:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            block.text,
+            style: TextStyle(
+              fontSize: block.level <= 2 ? 13 : 12.5,
+              fontWeight: FontWeight.w600,
+              color: Tokens.textPrimary,
+              height: 1.4,
+            ),
+          ),
+        );
+      case NoteBlockType.bullet:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Text(
+                  '•',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Tokens.accent,
+                    height: 1.55,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: Text(block.text, style: _bodyStyle)),
+            ],
+          ),
+        );
+      case NoteBlockType.paragraph:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(block.text, style: _bodyStyle),
+        );
+    }
+  }
 }
 
 /// 版本更新历史弹窗。

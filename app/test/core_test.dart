@@ -8,6 +8,7 @@ import 'package:welearn_app/core/auto_login.dart';
 import 'package:welearn_app/core/browser_login.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/parser.dart';
+import 'package:welearn_app/core/release_notes.dart';
 import 'package:welearn_app/core/runner.dart';
 import 'package:welearn_app/core/scorm.dart';
 import 'package:welearn_app/core/updater.dart';
@@ -577,6 +578,43 @@ void main() {
         ),
         'https://welearn.sflep.com/Upload/UserPhoto/c.jpg',
       );
+    });
+  });
+
+  group('更新说明 Markdown', () {
+    test('标题与列表被拆成可排版的块', () {
+      final blocks = parseReleaseNotes(
+        '## WeLearn 助手 1.1.6\n\n### 本次更新\n\n- 任务页单元组头吸顶\n- 面板字号调大\n',
+      );
+      expect(blocks.map((b) => b.type).toList(), [
+        NoteBlockType.heading,
+        NoteBlockType.heading,
+        NoteBlockType.bullet,
+        NoteBlockType.bullet,
+      ]);
+      expect(blocks[0].text, 'WeLearn 助手 1.1.6');
+      expect(blocks[0].level, 2);
+      expect(blocks[1].level, 3);
+      expect(blocks[2].text, '任务页单元组头吸顶');
+    });
+
+    test('表格跳过表头与分隔行，数据行拼成一行', () {
+      final blocks = parseReleaseNotes(
+        '| 平台 | 文件 | 说明 |\n| --- | --- | --- |\n| Windows | `Setup.exe` | 安装版 |\n',
+      );
+      expect(blocks.length, 1);
+      expect(blocks.single.text, 'Windows · Setup.exe · 安装版');
+    });
+
+    test('去掉行内标记但保留可读文字', () {
+      final blocks = parseReleaseNotes(
+        '**重点**说明与 [链接](https://example.com) 保留\n',
+      );
+      expect(blocks.single.text, '重点说明与 链接 保留');
+    });
+
+    test('空内容不产生块', () {
+      expect(parseReleaseNotes('  \n\n'), isEmpty);
     });
   });
 }

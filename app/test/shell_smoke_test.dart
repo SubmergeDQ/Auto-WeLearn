@@ -408,7 +408,7 @@ void main() {
       state.latestRelease = const ReleaseInfo(
         version: '9.9.9',
         tagName: 'v9.9.9',
-        notes: '1. 修复若干问题\n2. 新增功能',
+        notes: '## WeLearn 助手 9.9.9\n\n### 本次更新\n\n- 修复若干问题\n- 新增功能',
         htmlUrl: 'https://github.com/SubmergeDQ/Auto-WeLearn/releases',
         assets: [],
       );
@@ -419,7 +419,12 @@ void main() {
       expect(find.text('发现新版本 9.9.9'), findsOneWidget);
       expect(find.text('拒绝更新'), findsOneWidget);
       expect(find.text('更新'), findsOneWidget);
-      expect(find.textContaining('修复若干问题'), findsOneWidget);
+      // Markdown 已渲染成标题与列表，不再露出 ## / - 等原始标记
+      expect(find.text('WeLearn 助手 9.9.9'), findsOneWidget);
+      expect(find.text('本次更新'), findsOneWidget);
+      expect(find.text('修复若干问题'), findsOneWidget);
+      expect(find.textContaining('##'), findsNothing);
+      expect(find.textContaining('- 修复'), findsNothing);
 
       await tester.tap(find.text('拒绝更新'));
       await tester.pumpAndSettle();
