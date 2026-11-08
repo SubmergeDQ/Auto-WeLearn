@@ -708,8 +708,14 @@ Future<bool> openBrowserLogin(BuildContext context) async {
   // /student/，被误判为「已登录」并立刻关闭（用户感知就是内置浏览器闪退）。
   await clearBrowserSession();
   if (!context.mounted) return false;
-  final cookie = await Navigator.of(context)
-      .push<String>(MaterialPageRoute(builder: (_) => const LoginWebPage()));
-  if (cookie == null || cookie.isEmpty) return false;
-  return state.login(cookie);
+  final result = await Navigator.of(context).push<LoginPageResult>(
+    MaterialPageRoute(builder: (_) => const LoginWebPage()),
+  );
+  if (result == null || result.cookie.isEmpty) return false;
+  final ok = await state.login(result.cookie);
+  if (ok && result.username != null && result.password != null) {
+    // 只在登录成功后保存账号密码，输错密码不会覆盖可用凭据
+    await state.saveCredentials(result.username!, result.password!);
+  }
+  return ok;
 }

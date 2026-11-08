@@ -206,6 +206,34 @@ class _AccountGroup extends StatelessWidget {
           ),
         ),
         Divider(height: 1, color: Tokens.border.withValues(alpha: 0.6)),
+        // 登录失效后正在后台重登：未登录按钮先禁用，避免手动操作打断自动恢复
+        if (!state.loggedIn && state.autoLoginAttempting)
+          const Padding(
+            padding: EdgeInsets.only(top: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Tokens.accent,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '正在用保存的账号密码自动登录，请稍候…',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Tokens.textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Wrap(
@@ -241,15 +269,19 @@ class _AccountGroup extends StatelessWidget {
               ] else ...[
                 FilledButton.icon(
                   style: toolbarFilled(),
-                  onPressed: state.busy
+                  onPressed: state.busy || state.autoLoginAttempting
                       ? null
                       : () => openBrowserLogin(context),
                   icon: const Icon(Icons.language_rounded, size: 15),
-                  label: Text(state.busy ? '连接中…' : '内置浏览器登录'),
+                  label: Text(
+                    state.autoLoginAttempting
+                        ? '自动登录中…'
+                        : (state.busy ? '连接中…' : '内置浏览器登录'),
+                  ),
                 ),
                 OutlinedButton(
                   style: toolbarOutlined(),
-                  onPressed: state.busy
+                  onPressed: state.busy || state.autoLoginAttempting
                       ? null
                       : () => showLoginDialog(context, pasteOnly: true),
                   child: const Text('粘贴 Cookie'),
@@ -292,17 +324,140 @@ class _AccountGroup extends StatelessWidget {
         Divider(height: 1, color: Tokens.border.withValues(alpha: 0.6)),
         SettingRow(
           title: '保存登录状态',
-          description: '关闭后从托盘完全退出应用不会保留登录信息，下次需要重新登录',
+          description: _rememberHint(),
           trailing: CompactSwitch(
             value: state.rememberLogin,
             tooltip: '保存登录状态',
             onChanged: state.busy
                 ? null
-                : (value) => state.setRememberLogin(value),
+                : (value) => _toggleRememberLogin(context, value),
           ),
         ),
       ],
     );
+  }
+
+  /// 开关下方的说明：区分「已记录账号密码」「尚未记录」和「已关闭」三种状态。
+  String _rememberHint() {
+    if (!state.rememberLogin) {
+      return '关闭后从托盘完全退出应用不会保留登录信息，下次需要重新登录';
+    }
+    if (state.savePassword) {
+      return state.activeAccount?.hasCredentials == true
+          ? '已记录本机账号密码；Cookie 过期或在别处登录导致失效时，会在后台自动重登'
+          : '尚未记录账号密码；下次通过内置浏览器登录时自动记录，之后可后台自动重登';
+    }
+    return '只保存 Cookie；失效后需要手动重新登录';
+  }
+
+  /// 开启时询问是否同时记录账号密码（关闭则直接生效）。
+  ///
+  /// 账号密码用于 Cookie 失效后的后台自动重登，属于更敏感的数据，
+  /// 所以不默认勾选，必须由用户明确选择；取消时保持关闭状态。
+  Future<void> _toggleRememberLogin(BuildContext context, bool value) async {
+    if (!value) {
+      await state.setRememberLogin(false);
+      return;
+    }
+    // 手机上 AlertDialog 的 actions 会把两个按钮挤成上下两行，很难看；
+    // 窄屏改成竖排全宽按钮，桌面端保持横排。
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    const body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '开启后，从托盘完全退出应用再打开会恢复上次登录。',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        SizedBox(height: 10),
+        Text(
+          '是否同时记录内置浏览器里输入过的账号密码？记录后，当登录信息在别处失效时会在后台自动重新登录，避免运行中断。账号密码只保存在本机，不会上传。',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
+
+    final choice = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        if (compact) {
+          return Dialog(
+            backgroundColor: Tokens.surface,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Tokens.radiusCard),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    '保存登录状态',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  body,
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('保存账号密码'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('仅保存登录状态'),
+                  ),
+                  const SizedBox(height: 2),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('取消'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return AlertDialog(
+          backgroundColor: Tokens.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Tokens.radiusCard),
+          ),
+          title: const Text(
+            '保存登录状态',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          content: const SizedBox(width: 400, child: body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('仅保存登录状态'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('保存账号密码'),
+            ),
+          ],
+        );
+      },
+    );
+    if (choice == null) return;
+    await state.setRememberLogin(true, savePassword: choice);
   }
 
   String _stamp(DateTime t) {

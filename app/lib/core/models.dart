@@ -183,6 +183,46 @@ class LessonResult {
 
   /// 该节结束的时间，面板「最近完成」按它显示「n 分钟前」。
   final DateTime? finishedAt;
+
+  Map<String, dynamic> toJson() => {
+    'scoid': scoid,
+    'status': status.name,
+    'crate': crate,
+    'waitSec': waitSec,
+    'heartbeats': heartbeats,
+    'questions': stat.questions,
+    'oral': stat.oral,
+    'answered': stat.answered,
+    if (errorCode != null) 'errorCode': errorCode,
+    if (errorMessage != null) 'errorMessage': errorMessage,
+    if (finishedAt != null) 'finishedAt': finishedAt!.toIso8601String(),
+  };
+
+  /// 读回历史记录时对未知/损坏的状态回退为失败，不让整个历史失效。
+  static LessonResult? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final scoid = raw['scoid'];
+    if (scoid is! String || scoid.isEmpty) return null;
+    final status = LessonStatus.values.firstWhere(
+      (s) => s.name == raw['status'],
+      orElse: () => LessonStatus.failed,
+    );
+    return LessonResult(
+      scoid: scoid,
+      status: status,
+      crate: (raw['crate'] as num?)?.toInt() ?? 0,
+      waitSec: (raw['waitSec'] as num?)?.toInt() ?? 0,
+      heartbeats: (raw['heartbeats'] as num?)?.toInt() ?? 0,
+      stat: LessonStat(
+        questions: (raw['questions'] as num?)?.toInt() ?? 0,
+        oral: (raw['oral'] as num?)?.toInt() ?? 0,
+        answered: (raw['answered'] as num?)?.toInt() ?? 0,
+      ),
+      errorCode: raw['errorCode'] as String?,
+      errorMessage: raw['errorMessage'] as String?,
+      finishedAt: DateTime.tryParse('${raw['finishedAt']}'),
+    );
+  }
 }
 
 class ScannedCourse {

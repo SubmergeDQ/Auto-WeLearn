@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/api.dart';
+import 'core/auto_login.dart';
 import 'core/browser_login.dart';
 import 'core/errors.dart';
 import 'core/models.dart';
@@ -27,6 +28,23 @@ class LogEntry {
 
   String get clock =>
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+
+  Map<String, dynamic> toJson() => {
+    'l': level,
+    'm': message,
+    't': time.toIso8601String(),
+  };
+
+  static LogEntry? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final message = raw['m'];
+    if (message is! String) return null;
+    return LogEntry(
+      raw['l'] as String? ?? 'info',
+      message,
+      time: DateTime.tryParse('${raw['t']}'),
+    );
+  }
 }
 
 /// 已保存的账号。
@@ -38,6 +56,8 @@ class SavedAccount {
     required this.cookie,
     required this.savedAt,
     this.uid,
+    this.username,
+    this.password,
   });
 
   final String id;
@@ -45,19 +65,42 @@ class SavedAccount {
   final DateTime savedAt;
   final String? uid;
 
-  SavedAccount copyWith({String? cookie, DateTime? savedAt, String? uid}) =>
-      SavedAccount(
-        id: id,
-        cookie: cookie ?? this.cookie,
-        savedAt: savedAt ?? this.savedAt,
-        uid: uid ?? this.uid,
-      );
+  /// 内置浏览器里输入的账号密码，用于登录失效后自动重登。
+  /// 只保存在本机应用数据目录，不会随更新检查或运行请求发送。
+  final String? username;
+  final String? password;
+
+  bool get hasCredentials =>
+      (username?.isNotEmpty ?? false) && (password?.isNotEmpty ?? false);
+
+  /// 清掉账号密码，只保留 Cookie / UID（关闭保存登录状态或只保存 Cookie 时用）。
+  SavedAccount withoutCredentials() {
+    if (username == null && password == null) return this;
+    return SavedAccount(id: id, cookie: cookie, savedAt: savedAt, uid: uid);
+  }
+
+  SavedAccount copyWith({
+    String? cookie,
+    DateTime? savedAt,
+    String? uid,
+    String? username,
+    String? password,
+  }) => SavedAccount(
+    id: id,
+    cookie: cookie ?? this.cookie,
+    savedAt: savedAt ?? this.savedAt,
+    uid: uid ?? this.uid,
+    username: username ?? this.username,
+    password: password ?? this.password,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'cookie': cookie,
     'savedAt': savedAt.toIso8601String(),
     if (uid != null) 'uid': uid,
+    if (username != null) 'username': username,
+    if (password != null) 'password': password,
   };
 
   static SavedAccount? fromJson(Object? raw) {
@@ -70,6 +113,8 @@ class SavedAccount {
       cookie: cookie,
       savedAt: DateTime.tryParse('${raw['savedAt']}') ?? DateTime.now(),
       uid: raw['uid'] is String ? raw['uid'] as String : null,
+      username: raw['username'] is String ? raw['username'] as String : null,
+      password: raw['password'] is String ? raw['password'] as String : null,
     );
   }
 }
@@ -156,8 +201,24 @@ class AppState extends ChangeNotifier {
   /// 上次检查 GitHub 更新的时间，用来做「每天最多自动检查一次」的节流
   DateTime? lastUpdateCheckAt;
 
-  /// 是否把登录 Cookie 保存到本机。关闭后完全退出应用不会恢复登录态。
-  bool rememberLogin = true;
+  /// 是否把登录 Cookie 保存到本机。默认关闭；开启时由设置页询问是否记录账号密码。
+  bool rememberLogin = false;
+
+  /// 是否同时记录内置浏览器的账号密码（用于 Cookie 失效后的后台自动重登）。
+  bool savePassword = false;
+
+  /// 按账号 UID 保留的最近一次运行数据（日志、最近完成、小节状态）。
+  /// 登录失效或退出登录后不会被清空，同一 UID 再次登录时恢复。
+  final Map<String, Map<String, dynamic>> _history = {};
+
+  String? get historyUid => activeAccount?.uid ?? activeAccount?.id;
+
+  /// 正在用保存的账号密码自动重登：未登录页据此显示「正在尝试登录」
+  bool autoLoginAttempting = false;
+
+  /// 自动重登时复用当前账号记录，避免新增一条重复账号
+  String? _reuseAccountId;
+  bool _pendingAutoLogin = false;
 
   /// 从 WeLearn 学生主页实时拉取的头像字节；拉不到时界面回退文字占位。
   Uint8List? avatarBytes;
@@ -382,7 +443,18 @@ class AppState extends ChangeNotifier {
           final data =
               jsonDecode(await file.readAsString()) as Map<String, dynamic>;
 
-          rememberLogin = data['rememberLogin'] as bool? ?? true;
+          rememberLogin = data['rememberLogin'] as bool? ?? false;
+          savePassword =
+              rememberLogin && (data['savePassword'] as bool? ?? false);
+          final historyRaw = data['history'];
+          if (historyRaw is Map) {
+            for (final entry in historyRaw.entries) {
+              final value = entry.value;
+              if (value is Map) {
+                _history['${entry.key}'] = Map<String, dynamic>.from(value);
+              }
+            }
+          }
           accounts =
               (data['accounts'] as List?)
                   ?.map(SavedAccount.fromJson)
@@ -394,6 +466,16 @@ class AppState extends ChangeNotifier {
           // 关闭「保存登录状态」时磁盘上不应留着 Cookie；
           // 兼容旧版本写下的数据，这里也直接丢掉。
           if (!rememberLogin) {
+            accounts = const [];
+            activeAccountId = null;
+          }
+
+          // 1.1.5 起默认关闭「保存登录状态」：旧版本开启过的用户统一强制关闭，
+          // 避免升级后未经重新确认就继续把 Cookie / 账号密码留在磁盘上。
+          final storedVersion = (data['version'] as num?)?.toInt() ?? 0;
+          if (storedVersion < 3) {
+            rememberLogin = false;
+            savePassword = false;
             accounts = const [];
             activeAccountId = null;
           }
@@ -431,6 +513,8 @@ class AppState extends ChangeNotifier {
           final s = data['settings'];
           if (s is Map<String, dynamic>) settings = RunSettings.fromJson(s);
           notifyListeners();
+          // 迁移后立即写回磁盘，避免每次都按旧数据重新判定
+          if (storedVersion < 3) unawaited(_persist());
         }
       } catch (_) {
         // 首次启动或缓存损坏，忽略；仍按默认值恢复后台模式
@@ -464,7 +548,7 @@ class AppState extends ChangeNotifier {
       final file = File('${dir.path}/app_state.json');
       await file.writeAsString(
         jsonEncode({
-          'version': 2,
+          'version': 3,
           // 关闭「保存登录状态」时磁盘上不留 Cookie，但本次会话仍保持登录
           'accounts': rememberLogin
               ? accounts.map((a) => a.toJson()).toList()
@@ -478,6 +562,8 @@ class AppState extends ChangeNotifier {
           'persistentNotification': persistentNotification,
           'repoUrl': repoUrl,
           'rememberLogin': rememberLogin,
+          'savePassword': savePassword,
+          'history': _history,
           'railWidth': railWidth,
           'railCollapsed': railCollapsed,
           if (lastLoginAt != null)
@@ -489,6 +575,77 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       // 写盘失败不影响使用
     }
+  }
+
+  /// 把当前账号的日志、最近完成、小节状态存进历史。
+  ///
+  /// 键优先用平台 UID：登录失效、换 Cookie 重新登录后仍能找回同一账号的数据。
+  /// 同一 UID 只保留最近一次运行。
+  void _saveHistory({bool persist = true}) {
+    final uid = historyUid;
+    if (uid == null) return;
+    if (logs.isEmpty && recentResults.isEmpty && statuses.isEmpty) return;
+    _history[uid] = {
+      'savedAt': DateTime.now().toIso8601String(),
+      'logs': [for (final e in logs) e.toJson()],
+      'recentResults': [for (final r in recentResults) r.toJson()],
+      'statuses': statuses.map((k, v) => MapEntry(k, v.name)),
+      'runDone': runDone,
+      'runTotal': runTotal,
+      if (runStartedAt != null) 'runStartedAt': runStartedAt!.toIso8601String(),
+      if (runFinishedAt != null)
+        'runFinishedAt': runFinishedAt!.toIso8601String(),
+    };
+    if (persist) unawaited(_persist());
+  }
+
+  /// 登录并扫描完成后恢复该 UID 的历史；只补空缺，不覆盖本次新产生的记录。
+  void _restoreHistory(String uid) {
+    final raw = _history[uid];
+    if (raw == null) return;
+
+    final restoredLogs = <LogEntry>[];
+    final rawLogs = raw['logs'];
+    if (rawLogs is List) {
+      for (final item in rawLogs) {
+        final entry = LogEntry.fromJson(item);
+        if (entry != null) restoredLogs.add(entry);
+      }
+    }
+    if (restoredLogs.isNotEmpty) {
+      logs.insertAll(0, restoredLogs);
+      if (logs.length > 2000) logs.removeRange(0, logs.length - 2000);
+    }
+
+    final rawResults = raw['recentResults'];
+    if (recentResults.isEmpty && rawResults is List) {
+      for (final item in rawResults) {
+        final result = LessonResult.fromJson(item);
+        if (result == null) continue;
+        recentResults.add(result);
+        results.putIfAbsent(result.scoid, () => result);
+      }
+      if (recentResults.length > 12) {
+        recentResults.removeRange(12, recentResults.length);
+      }
+    }
+
+    final rawStatuses = raw['statuses'];
+    if (rawStatuses is Map) {
+      for (final entry in rawStatuses.entries) {
+        final name = '${entry.value}';
+        final status = LessonStatus.values
+            .where((s) => s.name == name)
+            .firstOrNull;
+        if (status != null) statuses.putIfAbsent('${entry.key}', () => status);
+      }
+    }
+
+    runDone = (raw['runDone'] as num?)?.toInt() ?? runDone;
+    runTotal = (raw['runTotal'] as num?)?.toInt() ?? runTotal;
+    runStartedAt ??= DateTime.tryParse('${raw['runStartedAt']}');
+    runFinishedAt ??= DateTime.tryParse('${raw['runFinishedAt']}');
+    notifyListeners();
   }
 
   /// 关闭窗口时的行为：ask（每次询问）/ tray（最小化到托盘）/ quit（直接退出）
@@ -759,6 +916,23 @@ class AppState extends ChangeNotifier {
   }
 
   void _rememberAccount(String cookieText) {
+    // 自动重登：沿用当前账号的 UID / 账号密码，只换新 Cookie
+    final reuseId = _reuseAccountId;
+    if (reuseId != null) {
+      final index = accounts.indexWhere((a) => a.id == reuseId);
+      if (index >= 0) {
+        accounts = [
+          for (final a in accounts)
+            if (a.id == reuseId)
+              a.copyWith(cookie: cookieText, savedAt: DateTime.now())
+            else
+              a,
+        ];
+        activeAccountId = reuseId;
+        return;
+      }
+    }
+
     final idx = accounts.indexWhere((a) => a.cookie == cookieText);
     if (idx >= 0) {
       activeAccountId = accounts[idx].id;
@@ -776,6 +950,11 @@ class AppState extends ChangeNotifier {
   void _rememberUid(String uid) {
     final acc = activeAccount;
     if (acc == null || acc.uid == uid) return;
+    // 首次登录时历史键是账号 id，拿到 UID 后迁移过去，保证下次按 UID 恢复
+    final legacyHistory = _history.remove(acc.id);
+    if (legacyHistory != null) {
+      _history.putIfAbsent(uid, () => legacyHistory);
+    }
     accounts = [
       for (final a in accounts)
         if (a.id == acc.id) a.copyWith(uid: uid) else a,
@@ -786,13 +965,75 @@ class AppState extends ChangeNotifier {
   // ── 登录 ─────────────────────────────────────────────
   /// 切换「保存登录状态」。
   ///
-  /// 关闭后立即把磁盘上的账号 Cookie 抹掉，本次会话仍保持登录；
-  /// 重新打开时把内存中的账号写回磁盘，下次启动即可恢复。
-  Future<void> setRememberLogin(bool value) async {
-    if (rememberLogin == value) return;
+  /// [savePassword] 由设置页的询问结果决定：true 时保留/允许记录账号密码，
+  /// 用于 Cookie 失效后的自动重登；false 时只保存 Cookie 并清掉账号密码。
+  Future<void> setRememberLogin(
+    bool value, {
+    bool savePassword = false,
+  }) async {
     rememberLogin = value;
+    this.savePassword = value && savePassword;
+    if (!value || !savePassword) {
+      accounts = [for (final a in accounts) a.withoutCredentials()];
+    }
     notifyListeners();
     await _persist();
+  }
+
+  /// 保存内置浏览器里输入过的账号密码，供 Cookie 失效后自动重登。
+  Future<void> saveCredentials(String username, String password) async {
+    if (!rememberLogin || !savePassword) return;
+    final acc = activeAccount;
+    if (acc == null) return;
+    if (acc.username == username && acc.password == password) return;
+    accounts = [
+      for (final a in accounts)
+        if (a.id == acc.id)
+          a.copyWith(username: username, password: password)
+        else
+          a,
+    ];
+    notifyListeners();
+    await _persist();
+  }
+
+  /// 用保存的账号密码自动重登（纯后台 HTTP，不打开任何界面）。
+  ///
+  /// 只在现有 Cookie 被平台明确判定失效后调用：Cookie 有效时始终先用 Cookie，
+  /// 避免每次启动都做一次密码登录而触发平台风控。
+  Future<void> _attemptAutoLogin() async {
+    if (autoLoginAttempting || !rememberLogin) return;
+    final acc = activeAccount;
+    if (acc == null || !acc.hasCredentials) return;
+
+    autoLoginAttempting = true;
+    lastError = '登录信息已失效，正在后台自动重登…';
+    notifyListeners();
+    try {
+      final cookie = await AutoLoginService().login(
+        acc.username!,
+        acc.password!,
+      );
+      if (cookie != null && cookie.isNotEmpty) {
+        // 复用当前账号记录，保留 UID 与账号密码，不新增重复账号
+        _reuseAccountId = acc.id;
+        final ok = await login(cookie, silent: true, awaitCourse: false);
+        if (ok) {
+          lastError = null;
+          addLog('info', '已使用保存的账号密码恢复登录');
+        }
+      } else {
+        lastError = '自动重登失败，请手动登录';
+        addLog('warn', lastError!);
+      }
+    } catch (e) {
+      lastError = '自动重登失败：$e';
+      addLog('warn', lastError!);
+    } finally {
+      _reuseAccountId = null;
+      autoLoginAttempting = false;
+      notifyListeners();
+    }
   }
 
   /// [awaitCourse] 为 false 时，登录校验成功后立刻返回，课程扫描放到后台，
@@ -840,10 +1081,13 @@ class AppState extends ChangeNotifier {
         // 启动恢复：只有服务端明确判定凭据失效才提示重新登录；
         // 网络/代理问题保留保存的 Cookie，下次启动继续尝试。
         if (e.isAuthExpired) {
-          accounts = const [];
-          activeAccountId = null;
-          await _persist();
-          lastError = '保存的登录信息已失效，请重新登录';
+          final saved = activeAccount;
+          if (saved != null && saved.hasCredentials) {
+            lastError = '登录信息已失效，正在尝试使用保存的账号密码自动登录…';
+            _pendingAutoLogin = true;
+          } else {
+            lastError = '保存的登录信息已失效，请重新登录';
+          }
         } else {
           lastError = '暂时无法恢复登录：${e.message}';
         }
@@ -856,6 +1100,11 @@ class AppState extends ChangeNotifier {
     } finally {
       busy = false;
       notifyListeners();
+      // 等 busy 复位后再自动重登，否则内部的 login 会被 busy 挡住
+      if (_pendingAutoLogin) {
+        _pendingAutoLogin = false;
+        unawaited(_attemptAutoLogin());
+      }
     }
   }
 
@@ -902,6 +1151,8 @@ class AppState extends ChangeNotifier {
   /// 运行设置（等待时长、正确率等）保留，重新登录后不用再调一遍。
   Future<void> logout() async {
     _stopSessionRun();
+    // 先按 UID 存好本次运行数据，再清账号；下次同 UID 登录会自动恢复
+    _saveHistory();
     _session.clearCookies();
     // 顺带清掉内置浏览器里的会话，避免下次打开登录页时又被旧 Cookie 自动带走
     await clearBrowserSession();
@@ -920,6 +1171,8 @@ class AppState extends ChangeNotifier {
   /// 登录过期但账号记录还在时，普通「退出登录」入口不显示，这个入口兜底。
   Future<void> forceClearCredentials() async {
     _stopSessionRun();
+    // 历史记录只含日志与运行结果，不含凭据；先留存，登录失效也不丢数据
+    _saveHistory();
     _session.clearCookies();
     // 内置浏览器的 Cookie / 缓存 / 本地存储一起清，登录态失效后残留的
     // WebView 会话会让内置浏览器一打开就自动跳回学生主页。
@@ -932,11 +1185,16 @@ class AppState extends ChangeNotifier {
     await _persist();
   }
 
-  /// 只清日志与本次运行结果，保留登录态
+  /// 只清日志与本次运行结果，保留登录态。
+  ///
+  /// 同时丢掉该账号的历史快照，否则重新登录或下次启动会把它们恢复回来。
   void clearLogs() {
     logs.clear();
     recentResults.clear();
+    final uid = historyUid;
+    if (uid != null) _history.remove(uid);
     notifyListeners();
+    unawaited(_persist());
   }
 
   // ── 课程与扫描 ───────────────────────────────────────
@@ -963,6 +1221,9 @@ class AppState extends ChangeNotifier {
       final m = await _api.getCourseMeta(cid);
       meta = m;
       _rememberUid(m.uid);
+      // 同一 UID 上次的日志、最近完成与状态在这里接回来；
+      // 即使这次是登录失效后重新登录，数据也不会凭空消失。
+      _restoreHistory(m.uid);
       if (rescan) {
         scanStage = '正在读取单元与小节…';
         notifyListeners();
@@ -1090,6 +1351,8 @@ class AppState extends ChangeNotifier {
           '用时 ${result.waitSec}s  心跳 ${result.heartbeats} 次'
           '${result.errorMessage != null ? '  ${result.errorMessage}' : ''}',
         );
+        // 每节结束落盘一次：登录突然失效或应用被关闭时，已跑完的记录不会丢
+        _saveHistory();
         notifyListeners();
 
         if (result.status == LessonStatus.interrupted) break;
@@ -1126,6 +1389,17 @@ class AppState extends ChangeNotifier {
       }
     } on AppException catch (e) {
       addLog('error', e.message);
+      if (e.isAuthExpired) {
+        loggedIn = false;
+        final saved = activeAccount;
+        if (saved != null && saved.hasCredentials) {
+          lastError = '登录已失效，正在尝试使用保存的账号密码自动登录…';
+          _pendingAutoLogin = true;
+        } else {
+          lastError = '登录已失效，请重新登录';
+        }
+        notifyListeners();
+      }
     } catch (e) {
       addLog('error', '运行异常：$e');
     } finally {
@@ -1135,10 +1409,15 @@ class AppState extends ChangeNotifier {
       gapTotal = 0;
       gapElapsed = 0;
       runFinishedAt = DateTime.now();
+      _saveHistory();
       _token = null;
       notifyListeners();
       _pushMobileTask(force: true);
       addLog('info', '本次运行结束');
+      if (_pendingAutoLogin) {
+        _pendingAutoLogin = false;
+        unawaited(_attemptAutoLogin());
+      }
     }
   }
 

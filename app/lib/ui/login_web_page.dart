@@ -6,6 +6,17 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../core/browser_login.dart';
 import '../theme.dart';
 
+/// 内置浏览器登录结果：Cookie + 页面上输入过的账号密码。
+///
+/// 账号密码用于 Cookie 失效后的自动重登，只在登录成功后交给 AppState 保存。
+class LoginPageResult {
+  const LoginPageResult({required this.cookie, this.username, this.password});
+
+  final String cookie;
+  final String? username;
+  final String? password;
+}
+
 /// 内置浏览器登录页。
 ///
 /// 打开真实的平台登录页，用户在页面内输入账号密码；平台自己完成 PKCE 跳转，
@@ -22,6 +33,9 @@ class _LoginWebPageState extends State<LoginWebPage> {
   InAppWebViewController? _controller;
   Timer? _poll;
   final DateTime _openedAt = DateTime.now();
+
+  String? _username;
+  String? _password;
 
   bool _loading = true;
   bool _finishing = false;
@@ -75,7 +89,15 @@ class _LoginWebPageState extends State<LoginWebPage> {
         return;
       }
       final header = buildCookieHeader(cookies);
-      if (mounted) Navigator.of(context).pop(header);
+      if (mounted) {
+        Navigator.of(context).pop(
+          LoginPageResult(
+            cookie: header,
+            username: _username,
+            password: _password,
+          ),
+        );
+      }
     } catch (e) {
       _finishing = false;
       if (mounted) {
@@ -130,14 +152,30 @@ class _LoginWebPageState extends State<LoginWebPage> {
                           ),
                           onWebViewCreated: (controller) {
                             _controller = controller;
+                            // 页面里每次输入账号密码都回传，登录成功后由 AppState 保存
+                            controller.addJavaScriptHandler(
+                              handlerName: 'welearnCred',
+                              callback: (args) {
+                                if (args.length >= 2) {
+                                  final username = '${args[0]}';
+                                  final password = '${args[1]}';
+                                  if (username.isNotEmpty && password.isNotEmpty) {
+                                    _username = username;
+                                    _password = password;
+                                  }
+                                }
+                                return null;
+                              },
+                            );
                           },
                           onLoadStart: (_, _) {
                             if (!mounted) return;
                             setState(() => _loading = true);
                           },
-                          onLoadStop: (_, _) {
+                          onLoadStop: (controller, _) async {
                             if (!mounted) return;
                             setState(() => _loading = false);
+                            await _injectCredentialCapture(controller);
                             _check();
                           },
                           onUpdateVisitedHistory: (_, _, _) => _check(),
@@ -176,6 +214,15 @@ class _LoginWebPageState extends State<LoginWebPage> {
         ),
       ),
     );
+  }
+
+  /// 注入账号密码捕获脚本：用户输入时回传，登录成功后由 AppState 决定是否保存。
+  Future<void> _injectCredentialCapture(InAppWebViewController controller) async {
+    try {
+      await controller.evaluateJavascript(source: _credentialCaptureScript);
+    } catch (_) {
+      // 页面结构变化时注入失败不影响手动登录
+    }
   }
 
   String _statusText() {
@@ -330,3 +377,44 @@ class _Footer extends StatelessWidget {
     );
   }
 }
+
+const _credentialCaptureScript = '''
+(function(){
+  if (window.__welearnCapture) return;
+  window.__welearnCapture = true;
+  function report(u, p) {
+    if (!u || !p || !u.value || !p.value) return;
+    if (window.__lastU === u.value && window.__lastP === p.value) return;
+    window.__lastU = u.value; window.__lastP = p.value;
+    window.flutter_inappwebview.callHandler('welearnCred', u.value, p.value);
+  }
+  function findUser() {
+    var list = Array.prototype.slice.call(document.querySelectorAll('input'));
+    return list.find(function(i){
+      if (i.type === 'password' || i.type === 'hidden') return false;
+      var n = (i.name || i.id || "").toLowerCase();
+      return i.type === 'email' || n.indexOf('user') >= 0 || n.indexOf('account') >= 0 || n.indexOf('login') >= 0;
+    }) || list.find(function(i){ return i.type === 'text'; }) || null;
+  }
+  function attach() {
+    var p = document.querySelector('input[type=password]');
+    if (!p) return false;
+    var u = findUser();
+    if (!u) return false;
+    if (!window.__welearnAttached) {
+      window.__welearnAttached = true;
+      ['input','change','blur'].forEach(function(ev){
+        u.addEventListener(ev, function(){ report(u, p); });
+        p.addEventListener(ev, function(){ report(u, p); });
+      });
+    }
+    report(u, p);
+    return true;
+  }
+  if (!attach()) {
+    var timer = setInterval(function(){ if (attach()) clearInterval(timer); }, 500);
+    setTimeout(function(){ clearInterval(timer); }, 15000);
+  }
+})();
+''';
+

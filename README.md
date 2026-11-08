@@ -2,17 +2,24 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.4**
+当前版本：**1.1.5**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.4.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.4.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.4-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.4-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.4.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.4.apk) | 通用包，versionName 1.1.4 / versionCode 7，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.5.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.5.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.5-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.5-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.5.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.5.apk) | 通用包，versionName 1.1.5 / versionCode 8，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装。
+
+### 1.1.5 更新要点
+
+- 新增账号密码记录（可选）：开启「保存登录状态」时询问是否同时记录内置浏览器里输入过的账号密码，账号密码只保存在本机。
+- 登录失效自动后台重登：Cookie 过期、账号在别处登录导致失效时，若已记录账号密码，会在后台静默重新登录并恢复运行，界面上只显示「正在尝试自动登录」提示，不弹出登录页。
+- 「保存登录状态」默认改为关闭：升级后旧版本开启过的设置会被强制关闭，需要重新开启并选择是否记录账号密码；关闭时立即清除已记录的密码。
+- 按账号 UID 保留最近一次运行数据：日志、最近完成、小节状态、本次运行进度都会在登录失效或退出登录前落盘，同一账号重新登录后自动恢复，不再因一次失效全部清空。
 
 ### 1.1.4 更新要点
 
@@ -58,10 +65,11 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 ### 账号与登录
 
-- 内置浏览器直接打开 WE Learn 真实登录页，账号密码只在平台页面输入，不经过本工具的输入框。
+- 内置浏览器直接打开 WE Learn 真实登录页，账号密码只在平台页面输入；开启「保存账号密码」后记录在本机，用于登录失效后的后台自动重登。
 - 也支持粘贴浏览器 Cookie 登录；Cookie 只保存在本机应用数据目录，不会上传到任何服务器。
-- 默认开启「保存登录状态」：从托盘完全退出后再次打开会自动恢复上次登录；只有保存的凭据被平台判定失效时才提示重新登录，可在设置里关闭。
 - 登录后自动读取课程列表与学生主页头像；头像拉取失败时回退为课程首字占位，可手动刷新。
+- 「保存登录状态」默认关闭：开启时可选择只保存 Cookie 或同时保存账号密码。开启后从托盘完全退出再打开会自动恢复上次登录；Cookie 过期或在别处登录失效时，若记录了账号密码会在后台静默重登，界面显示「正在尝试自动登录」而不会弹出登录页。
+- 按账号 UID 保留最近一次运行数据（日志、最近完成、小节状态与运行进度）：登录失效或退出登录前先落盘，同一账号重新登录后自动恢复。
 - 登录态失效时会在设置页给出提示，并提供「强制清除会话凭据」，避免残留失效 Cookie。
 
 ### 课程扫描

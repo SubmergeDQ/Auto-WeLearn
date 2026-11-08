@@ -43,11 +43,17 @@ class _TasksPageState extends State<TasksPage> {
     if (!state.loggedIn) {
       return Center(
         child: EmptyState(
-          icon: Icons.person_outline,
-          title: '还没有登录',
-          body: '登录后才能扫描课程、勾选要跑的小节。',
-          actionLabel: '去设置登录',
-          onAction: () => widget.onNavigate(AppSection.settings),
+          icon: state.autoLoginAttempting
+              ? Icons.autorenew_rounded
+              : Icons.person_outline,
+          title: state.autoLoginAttempting ? '正在尝试自动登录' : '还没有登录',
+          body: state.autoLoginAttempting
+              ? '正在用保存的账号密码恢复登录状态，请稍候…'
+              : '登录后才能扫描课程、勾选要跑的小节。',
+          actionLabel: state.autoLoginAttempting ? null : '去设置登录',
+          onAction: state.autoLoginAttempting
+              ? null
+              : () => widget.onNavigate(AppSection.settings),
         ),
       );
     }

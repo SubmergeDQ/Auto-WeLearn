@@ -378,6 +378,28 @@ void main() {
     }
   });
 
+  testWidgets('设置页：开启保存登录状态时询问是否记录账号密码', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      await tester.tap(find.byKey(const Key('nav-settings')));
+      await tester.pumpAndSettle();
+
+      // 默认关闭，点击后先弹选择框，不立即开启
+      expect(state.rememberLogin, isFalse);
+      await tester.tap(find.byTooltip('保存登录状态'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('仅保存登录状态'), findsOneWidget);
+
+      await tester.tap(find.text('保存账号密码'));
+      await tester.pumpAndSettle();
+
+      expect(state.rememberLogin, isTrue);
+      expect(state.savePassword, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('滑条两端可以拖到完全重合', (tester) async {
     int started = 30;
     int ended = 60;

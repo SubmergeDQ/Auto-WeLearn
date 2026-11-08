@@ -79,31 +79,41 @@ class _DashboardPageState extends State<DashboardPage> {
                                   child: EmptyState(
                                     icon: state.loggedIn
                                         ? Icons.cloud_sync_outlined
-                                        : Icons.person_outline,
+                                        : (state.autoLoginAttempting
+                                              ? Icons.autorenew_rounded
+                                              : Icons.person_outline),
                                     // 扫描中的实时反馈已经在标题下的横幅里；
                                     // 空态只说明"扫描完会出现什么"，避免两处都写「正在扫描」。
                                     title: state.loggedIn
                                         ? (state.scanning
                                               ? '扫描完成后显示课程结构'
                                               : '还没有扫描到小节')
-                                        : '还没有登录',
+                                        : (state.autoLoginAttempting
+                                              ? '正在尝试自动登录'
+                                              : '还没有登录'),
                                     body: state.loggedIn
                                         ? (state.scanning
                                               ? '单元和小节会在扫描结束后出现在这里和任务页。'
                                               : '到任务页重新扫描一次，就能看到所有小节和待处理数量。')
-                                        : '在设置里用内置浏览器登录 WE Learn，或者粘贴一份 Cookie。登录后才能扫描课程与运行任务。',
+                                        : (state.autoLoginAttempting
+                                              ? '正在用保存的账号密码恢复登录状态，请稍候…'
+                                              : '在设置里用内置浏览器登录 WE Learn，或者粘贴一份 Cookie。登录后才能扫描课程与运行任务。'),
                                     actionLabel: state.loggedIn
                                         ? (state.scanning ? null : '去任务页')
-                                        : '去登录',
+                                        : (state.autoLoginAttempting
+                                              ? null
+                                              : '去登录'),
                                     onAction: state.loggedIn
                                         ? (state.scanning
                                               ? null
                                               : () => widget.onNavigate(
                                                   AppSection.tasks,
                                                 ))
-                                        : () => widget.onNavigate(
-                                            AppSection.settings,
-                                          ),
+                                        : (state.autoLoginAttempting
+                                              ? null
+                                              : () => widget.onNavigate(
+                                                  AppSection.settings,
+                                                )),
                                   ),
                                 ),
                               ),

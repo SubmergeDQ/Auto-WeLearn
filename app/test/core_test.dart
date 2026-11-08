@@ -4,6 +4,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart' show Cookie;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:welearn_app/app_state.dart';
 import 'package:welearn_app/core/api.dart';
+import 'package:welearn_app/core/auto_login.dart';
 import 'package:welearn_app/core/browser_login.dart';
 import 'package:welearn_app/core/models.dart';
 import 'package:welearn_app/core/parser.dart';
@@ -319,6 +320,135 @@ void main() {
         relativeTimeText(DateTime(2025, 12, 31, 20, 15), now: now),
         '2025-12-31 20:15',
       );
+    });
+  });
+
+  group('自动重登表单解析', () {
+    test('识别账号 / 密码字段并带回隐藏字段', () {
+      final form = findLoginForm('''
+        <form action="/Account/Login?ReturnUrl=%2Fstudent%2F" method="post">
+          <input type="hidden" name="__VIEWSTATE" value="abc">
+          <input type="hidden" name="__EVENTVALIDATION" value="def">
+          <input type="text" name="txtUser" id="txtUser">
+          <input type="password" name="txtPass">
+          <input type="submit" name="btnLogin" value="登录">
+        </form>
+      ''');
+      expect(form, isNotNull);
+      expect(form!.userField, 'txtUser');
+      expect(form.passField, 'txtPass');
+      expect(form.action, '/Account/Login?ReturnUrl=%2Fstudent%2F');
+      expect(form.fields['__VIEWSTATE'], 'abc');
+      expect(form.fields['__EVENTVALIDATION'], 'def');
+      // 提交按钮不参与表单字段
+      expect(form.fields.containsKey('btnLogin'), isFalse);
+    });
+
+    test('邮箱输入框也当作账号', () {
+      final form = findLoginForm(
+        '<form action="/login"><input type="email" name="email">'
+        '<input type="password" name="pwd"></form>',
+      );
+      expect(form?.userField, 'email');
+      expect(form?.passField, 'pwd');
+    });
+
+    test('缺密码框或缺账号框时不返回表单', () {
+      expect(
+        findLoginForm('<form><input type="text" name="q"></form>'),
+        isNull,
+      );
+      expect(
+        findLoginForm('<form><input type="password" name="p"></form>'),
+        isNull,
+      );
+      expect(findLoginForm(''), isNull);
+    });
+  });
+
+  group('账号凭据序列化', () {
+    test('含账号密码的保存账号可往返', () {
+      final account = SavedAccount(
+        id: 'u1',
+        cookie: '.AspNet.Cookies=ticket',
+        savedAt: DateTime(2026, 11, 8, 10, 30),
+        uid: '10000001',
+        username: 'alice',
+        password: 'secret',
+      );
+      final back = SavedAccount.fromJson(account.toJson());
+      expect(back, isNotNull);
+      expect(back!.id, 'u1');
+      expect(back.cookie, '.AspNet.Cookies=ticket');
+      expect(back.uid, '10000001');
+      expect(back.username, 'alice');
+      expect(back.password, 'secret');
+      expect(back.hasCredentials, isTrue);
+    });
+
+    test('withoutCredentials 清空密码但保留 Cookie 与 UID', () {
+      final account = SavedAccount(
+        id: 'u1',
+        cookie: 'c=1',
+        savedAt: DateTime(2026, 11, 8),
+        uid: '10000001',
+        username: 'alice',
+        password: 'secret',
+      );
+      final stripped = account.withoutCredentials();
+      expect(stripped.cookie, 'c=1');
+      expect(stripped.uid, '10000001');
+      expect(stripped.username, isNull);
+      expect(stripped.password, isNull);
+      expect(stripped.hasCredentials, isFalse);
+    });
+
+    test('只有 Cookie 时不算已记录账号密码', () {
+      final account = SavedAccount(
+        id: 'u1',
+        cookie: 'c=1',
+        savedAt: DateTime(2026, 11, 8),
+      );
+      expect(account.hasCredentials, isFalse);
+      expect(SavedAccount.fromJson(account.toJson())?.hasCredentials, isFalse);
+    });
+  });
+
+  group('运行历史序列化', () {
+    test('LessonResult 往返保留完成时间与统计', () {
+      final result = LessonResult(
+        scoid: 'x',
+        status: LessonStatus.done,
+        crate: 100,
+        waitSec: 300,
+        heartbeats: 5,
+        stat: const LessonStat(questions: 12, oral: 3, answered: 10),
+        finishedAt: DateTime(2026, 11, 8, 9, 30),
+      );
+      final back = LessonResult.fromJson(result.toJson());
+      expect(back, isNotNull);
+      expect(back!.scoid, 'x');
+      expect(back.status, LessonStatus.done);
+      expect(back.stat.questions, 12);
+      expect(back.finishedAt, DateTime(2026, 11, 8, 9, 30));
+    });
+
+    test('损坏的历史记录返回 null', () {
+      expect(LessonResult.fromJson(null), isNull);
+      expect(LessonResult.fromJson({'scoid': ''}), isNull);
+    });
+
+    test('LogEntry 往返保留等级、内容与时间', () {
+      final entry = LogEntry(
+        'warn',
+        '登录态失效',
+        time: DateTime(2026, 11, 8, 9, 30, 5),
+      );
+      final back = LogEntry.fromJson(entry.toJson());
+      expect(back, isNotNull);
+      expect(back!.level, 'warn');
+      expect(back.message, '登录态失效');
+      expect(back.time, DateTime(2026, 11, 8, 9, 30, 5));
     });
   });
 
