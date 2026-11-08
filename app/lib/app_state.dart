@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'core/api.dart';
 import 'core/auto_login.dart';
@@ -243,6 +244,17 @@ class AppState extends ChangeNotifier {
   bool downloadingUpdate = false;
   double updateProgress = 0;
   String? updateError;
+
+  /// 检查到新版本后置位，界面据此弹出「是否更新」询问。
+  bool updatePromptPending = false;
+
+  /// 已提示过的版本：同一次会话里每 6 小时的自动检查不会反复弹窗。
+  String? _promptedUpdateVersion;
+
+  /// 界面接管弹窗后清除待提示标记。
+  void markUpdatePromptShown() {
+    updatePromptPending = false;
+  }
 
   bool get hasUpdate {
     final release = latestRelease;
@@ -706,6 +718,12 @@ class AppState extends ChangeNotifier {
     try {
       final release = await _updater.fetchLatest(repoUrl);
       latestRelease = release;
+      // 发现新版本时让界面弹一次询问；同一版本拒绝后本次会话不再重复打扰
+      if (isNewerVersion(release.version, appVersion) &&
+          release.version != _promptedUpdateVersion) {
+        _promptedUpdateVersion = release.version;
+        updatePromptPending = true;
+      }
       if (!silent) {
         addLog(
           'info',
@@ -769,6 +787,7 @@ class AppState extends ChangeNotifier {
     downloadingUpdate = true;
     updateProgress = 0;
     updateError = null;
+    _pushDownloadProgress(0);
     notifyListeners();
     try {
       final file = await _updater.downloadAsset(
@@ -780,6 +799,7 @@ class AppState extends ChangeNotifier {
           // 每 1% 才刷新一次，避免整页随下载字节数反复重建
           if (next >= 1.0 || next - updateProgress >= 0.01) {
             updateProgress = next;
+            _pushDownloadProgress(next);
             notifyListeners();
           }
         },
@@ -795,8 +815,28 @@ class AppState extends ChangeNotifier {
       addLog('warn', updateError!);
       return null;
     } finally {
+      _pushDownloadProgress(0, active: false);
       downloadingUpdate = false;
       notifyListeners();
+    }
+  }
+
+  /// 把更新下载进度同步到安卓通知栏 / Windows 任务栏进度。
+  void _pushDownloadProgress(double progress, {bool active = true}) {
+    if (MobileBackground.supported) {
+      unawaited(
+        MobileBackground.updateDownload(
+          active: active,
+          progress: progress.clamp(0.0, 1.0).toDouble(),
+        ),
+      );
+      return;
+    }
+    if (!Platform.isWindows) return;
+    try {
+      unawaited(windowManager.setProgressBar(active ? progress : -1));
+    } catch (_) {
+      // 窗口尚未初始化或插件不可用时忽略
     }
   }
 

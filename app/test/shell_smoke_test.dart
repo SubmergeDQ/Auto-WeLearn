@@ -7,6 +7,7 @@ import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/theme.dart';
 import 'package:welearn_app/ui/app_scope.dart';
 import 'package:welearn_app/ui/components.dart';
+import 'package:welearn_app/ui/dialogs.dart';
 import 'package:welearn_app/ui/widgets.dart';
 import 'package:welearn_app/ui/workbench.dart';
 
@@ -398,6 +399,102 @@ void main() {
       expect(state.savePassword, isTrue);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets('发现新版本时自动弹出更新询问', (tester) async {
+    await desktop(() async {
+      final state = await pumpAt(tester, const Size(1440, 900), seed: seeded());
+      state.latestRelease = const ReleaseInfo(
+        version: '9.9.9',
+        tagName: 'v9.9.9',
+        notes: '1. 修复若干问题\n2. 新增功能',
+        htmlUrl: 'https://github.com/SubmergeDQ/Auto-WeLearn/releases',
+        assets: [],
+      );
+      state.updatePromptPending = true;
+      state.notifyListeners();
+      await tester.pumpAndSettle();
+
+      expect(find.text('发现新版本 9.9.9'), findsOneWidget);
+      expect(find.text('拒绝更新'), findsOneWidget);
+      expect(find.text('更新'), findsOneWidget);
+      expect(find.textContaining('修复若干问题'), findsOneWidget);
+
+      await tester.tap(find.text('拒绝更新'));
+      await tester.pumpAndSettle();
+      expect(find.text('发现新版本 9.9.9'), findsNothing);
+      expect(state.updatePromptPending, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('登录成功后询问是否保存登录状态', (tester) async {
+    bool? choice;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  choice = await askSaveLoginAfterLogin(
+                    context,
+                    hasCredentials: true,
+                  );
+                },
+                child: const Text('打开'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('登录成功'), findsOneWidget);
+    expect(find.text('保存账号密码'), findsOneWidget);
+    expect(find.text('仅保存登录状态'), findsOneWidget);
+
+    await tester.tap(find.text('保存账号密码'));
+    await tester.pumpAndSettle();
+    expect(choice, isTrue);
+  });
+
+  testWidgets('粘贴 Cookie 登录只提供保存登录状态', (tester) async {
+    bool? choice;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  choice = await askSaveLoginAfterLogin(
+                    context,
+                    hasCredentials: false,
+                  );
+                },
+                child: const Text('打开'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保存账号密码'), findsNothing);
+    expect(find.text('保存登录状态'), findsOneWidget);
+
+    await tester.tap(find.text('保存登录状态'));
+    await tester.pumpAndSettle();
+    expect(choice, isFalse);
   });
 
   testWidgets('滑条两端可以拖到完全重合', (tester) async {

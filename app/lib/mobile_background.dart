@@ -71,6 +71,24 @@ class MobileBackground {
     }
   }
 
+  /// 把更新包下载进度显示到通知栏；[active] 为 false 时移除该通知。
+  static Future<void> updateDownload({
+    required bool active,
+    required double progress,
+  }) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod<void>('updateDownload', <String, Object>{
+        'active': active,
+        'progress': progress,
+      });
+    } on PlatformException catch (_) {
+      // 通知权限不可用时静默降级，下载本身继续进行
+    } on MissingPluginException catch (_) {
+      // 同上
+    }
+  }
+
   /// 当前权限状态。`null` 表示读不到（非安卓或旧版 APK）。
   static Future<BackgroundPermission?> status() async {
     if (!supported) return null;

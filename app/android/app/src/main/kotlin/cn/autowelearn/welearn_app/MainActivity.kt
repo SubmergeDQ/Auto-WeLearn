@@ -1,8 +1,13 @@
 package cn.autowelearn.welearn_app
 
 import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -29,6 +34,10 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "cn.autowelearn.welearn/background"
         private const val REQ_NOTIFICATION = 1001
 
+        /** 更新下载使用独立通知，结束后立即移除，不影响常驻任务通知。 */
+        private const val DOWNLOAD_CHANNEL_ID = "welearn_update"
+        private const val DOWNLOAD_NOTIFICATION_ID = 1002
+
         @Volatile
         private var channel: MethodChannel? = null
 
@@ -49,6 +58,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        createDownloadChannel()
         val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         channel = methodChannel
         methodChannel.setMethodCallHandler { call, result ->
@@ -101,6 +111,12 @@ class MainActivity : FlutterActivity() {
                 "installApk" -> {
                     val path = call.argument<String>("path") ?: ""
                     result.success(installApk(path))
+                }
+                "updateDownload" -> {
+                    val active = call.argument<Boolean>("active") ?: false
+                    val progress = call.argument<Double>("progress") ?: 0.0
+                    updateDownloadNotification(active, progress)
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
@@ -250,6 +266,66 @@ class MainActivity : FlutterActivity() {
             )
         } catch (_: Exception) {
             // 极少数定制系统没有详情页，忽略
+        }
+    }
+
+    /**
+     * 更新下载进度通知：独立通道与独立 ID，结束后移除。
+     * 未授予通知权限时静默失败，不影响下载本身。
+     */
+    private fun createDownloadChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                DOWNLOAD_CHANNEL_ID,
+                "更新下载",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "下载应用更新包时显示进度"
+                setSound(null, null)
+                enableVibration(false)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateDownloadNotification(active: Boolean, progress: Double) {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!active) {
+            manager.cancel(DOWNLOAD_NOTIFICATION_ID)
+            return
+        }
+        try {
+            val launch = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val mutability =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+            val pending = PendingIntent.getActivity(
+                this,
+                0,
+                launch,
+                PendingIntent.FLAG_UPDATE_CURRENT or mutability,
+            )
+            val percent = (progress.coerceIn(0.0, 1.0) * 100).toInt()
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, DOWNLOAD_CHANNEL_ID)
+            } else {
+                Notification.Builder(this)
+            }
+            builder
+                .setContentTitle("正在下载更新")
+                .setContentText("已下载 $percent%")
+                .setSmallIcon(R.drawable.ic_stat_welearn)
+                .setContentIntent(pending)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setProgress(100, percent, percent <= 1)
+            manager.notify(DOWNLOAD_NOTIFICATION_ID, builder.build())
+        } catch (_: Exception) {
+            // 通知权限被撤销或系统限制时忽略，下载继续
         }
     }
 

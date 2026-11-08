@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../app_state.dart';
 import '../theme.dart';
 import 'app_scope.dart';
+import 'dialogs.dart';
 import 'nav.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/settings_page.dart';
@@ -20,6 +22,7 @@ class Workbench extends StatefulWidget {
 
 class _WorkbenchState extends State<Workbench> {
   AppSection _section = AppSection.dashboard;
+  bool _updatePromptScheduled = false;
 
   void _go(AppSection section) {
     if (_section == section) return;
@@ -28,6 +31,20 @@ class _WorkbenchState extends State<Workbench> {
 
   void _openUnit(int unitIndex) {
     setState(() => _section = AppSection.tasks);
+  }
+
+  /// 检查更新发现新版本后弹一次询问。
+  ///
+  /// 用 post-frame 回调避开 build 期间弹路由；标记清除后同一次检查不会再触发。
+  void _scheduleUpdatePrompt(AppState state) {
+    if (!state.updatePromptPending || _updatePromptScheduled) return;
+    _updatePromptScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updatePromptScheduled = false;
+      if (!mounted || !state.updatePromptPending) return;
+      state.markUpdatePromptShown();
+      showUpdateDialog(context);
+    });
   }
 
   @override
@@ -39,6 +56,8 @@ class _WorkbenchState extends State<Workbench> {
     if (state.restoring) {
       return const _BootPlaceholder();
     }
+
+    _scheduleUpdatePrompt(state);
 
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= 900;

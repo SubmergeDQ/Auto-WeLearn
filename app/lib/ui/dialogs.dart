@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../core/browser_login.dart';
+import '../core/updater.dart';
 import '../theme.dart';
 import 'app_scope.dart';
 import 'login_web_page.dart';
@@ -54,11 +56,7 @@ Future<void> showLoginDialog(
               onPressed: state.busy
                   ? null
                   : () async {
-                      final cookie = await Navigator.of(context).push<String>(
-                        MaterialPageRoute(builder: (_) => const LoginWebPage()),
-                      );
-                      if (cookie == null || !context.mounted) return;
-                      final ok = await state.login(cookie);
+                      final ok = await openBrowserLogin(context);
                       if (ok && context.mounted) Navigator.pop(context);
                     },
               icon: const Icon(Icons.language_rounded, size: 18),
@@ -165,7 +163,7 @@ Future<void> showLoginDialog(
         ],
         const SizedBox(height: 6),
         const Text(
-          '账号密码只在平台页面里输入，本工具不保存密码，只保存登录后的 Cookie。',
+          '账号密码只在平台页面里输入；默认不保存密码，可在登录成功后选择保存。',
           style: TextStyle(
             fontSize: 11,
             color: Tokens.textTertiary,
@@ -179,7 +177,12 @@ Future<void> showLoginDialog(
   Future<void> submit(BuildContext dialogContext) async {
     final ok = await state.login(controller.text);
     if (!dialogContext.mounted) return;
-    if (ok) Navigator.pop(dialogContext);
+    if (!ok) return;
+    Navigator.pop(dialogContext);
+    // 粘贴 Cookie 登录没有账号密码，只询问是否保存登录状态
+    if (!state.rememberLogin && context.mounted) {
+      await promptSaveLogin(context, state);
+    }
   }
 
   if (compact) {
@@ -700,6 +703,270 @@ Future<CloseDecision?> showCloseDialog(BuildContext context) async {
   );
 }
 
+/// 登录成功后询问是否保存登录状态。
+///
+/// 返回 `null` 表示不保存；`false` 只保存 Cookie；`true` 同时记录账号密码。
+/// [hasCredentials] 为 false（例如粘贴 Cookie 登录）时不提供密码选项。
+Future<bool?> askSaveLoginAfterLogin(
+  BuildContext context, {
+  required bool hasCredentials,
+}) async {
+  // 与设置页一致：窄屏竖排全宽按钮，桌面端横排
+  final compact = MediaQuery.sizeOf(context).width < 600;
+  final body = Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const Text(
+        '是否保存登录状态？保存后从托盘完全退出应用再打开会自动恢复登录。',
+        style: TextStyle(
+          fontSize: 12.5,
+          color: Tokens.textSecondary,
+          height: 1.5,
+        ),
+      ),
+      if (hasCredentials) ...[
+        const SizedBox(height: 10),
+        const Text(
+          '也可以同时记录刚才输入的账号密码：登录信息在别处失效时会在后台自动重登。账号密码只保存在本机，不会上传。',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Tokens.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ],
+    ],
+  );
+
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      if (compact) {
+        return Dialog(
+          backgroundColor: Tokens.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Tokens.radiusCard),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  '登录成功',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                body,
+                const SizedBox(height: 18),
+                if (hasCredentials) ...[
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('保存账号密码'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(hasCredentials ? '仅保存登录状态' : '保存登录状态'),
+                ),
+                const SizedBox(height: 2),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('暂不保存'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      return AlertDialog(
+        backgroundColor: Tokens.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: const Text(
+          '登录成功',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: SizedBox(width: 420, child: body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('暂不保存'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(hasCredentials ? '仅保存登录状态' : '保存登录状态'),
+          ),
+          if (hasCredentials)
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('保存账号密码'),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+/// 登录成功后按用户选择写入「保存登录状态」与账号密码。
+Future<void> promptSaveLogin(
+  BuildContext context,
+  AppState state, {
+  String? username,
+  String? password,
+}) async {
+  final hasCredentials = username != null && password != null;
+  final choice = await askSaveLoginAfterLogin(
+    context,
+    hasCredentials: hasCredentials,
+  );
+  if (choice == null) return;
+  await state.setRememberLogin(true, savePassword: choice);
+  if (choice && hasCredentials) {
+    await state.saveCredentials(username, password);
+  }
+}
+
+/// 发现新版本时的更新询问弹窗。
+///
+/// 弹窗内直接展示版本内容并下载、显示进度；下载期间提供「后台更新」，
+/// 关闭弹窗后下载继续，进度同步到安卓通知栏 / Windows 任务栏。
+Future<void> showUpdateDialog(BuildContext context) async {
+  final state = AppScope.of(context);
+  final release = state.latestRelease;
+  if (release == null) return;
+  final progressHost =
+      defaultTargetPlatform == TargetPlatform.android ? '通知栏' : '任务栏';
+
+  await showDialog<void>(
+    context: context,
+    // 下载中误点外部会中断用户对进度条的观察，只允许按钮关闭
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      // 通过 AppScope 读取，下载进度 notifyListeners 时弹窗自动重建
+      final live = AppScope.of(dialogContext);
+      final notes = release.notes.trim();
+      final percent = (live.updateProgress * 100).round();
+
+      return AlertDialog(
+        backgroundColor: Tokens.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tokens.radiusCard),
+        ),
+        title: Text(
+          '发现新版本 ${release.version}',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '当前版本 $appVersion，可更新到 ${release.version}',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Tokens.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 220),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Tokens.canvas,
+                  borderRadius: BorderRadius.circular(Tokens.radiusControl),
+                  border: Border.all(color: Tokens.border),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    notes.isEmpty ? '本次更新包含问题修复与体验改进。' : notes,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Tokens.textSecondary,
+                      height: 1.55,
+                    ),
+                  ),
+                ),
+              ),
+              if (live.downloadingUpdate || live.updateProgress > 0) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: live.updateProgress > 0
+                        ? live.updateProgress
+                        : null,
+                    minHeight: 5,
+                    backgroundColor: Tokens.mutedSoft,
+                    valueColor: const AlwaysStoppedAnimation(Tokens.accent),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '正在下载 $percent%，进度同步显示在$progressHost',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Tokens.textTertiary,
+                  ),
+                ),
+              ],
+              if (live.updateError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  live.updateError!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Tokens.danger,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          if (live.downloadingUpdate)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('后台更新'),
+            )
+          else ...[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('拒绝更新'),
+            ),
+            FilledButton(
+              onPressed: () => _runUpdate(dialogContext, live),
+              child: const Text('更新'),
+            ),
+          ],
+        ],
+      );
+    },
+  );
+}
+
+/// 下载并安装更新。
+///
+/// 用弹窗的上下文只在下载完成、弹窗仍打开时关闭它；用户点过「后台更新」
+/// 后即使上下文已失效，下载与安装仍会继续。
+Future<void> _runUpdate(BuildContext dialogContext, AppState state) async {
+  final path = await state.downloadUpdate();
+  if (path == null) return;
+  if (dialogContext.mounted) Navigator.pop(dialogContext);
+  await state.installUpdate(path);
+}
+
 /// 打开内置浏览器完成登录，成功后直接把 Cookie 交给 [AppState.login]。
 /// 返回是否登录成功（用户取消返回 false）。
 Future<bool> openBrowserLogin(BuildContext context) async {
@@ -713,9 +980,23 @@ Future<bool> openBrowserLogin(BuildContext context) async {
   );
   if (result == null || result.cookie.isEmpty) return false;
   final ok = await state.login(result.cookie);
-  if (ok && result.username != null && result.password != null) {
-    // 只在登录成功后保存账号密码，输错密码不会覆盖可用凭据
-    await state.saveCredentials(result.username!, result.password!);
+  if (!ok) return false;
+
+  final username = result.username;
+  final password = result.password;
+  if (state.rememberLogin) {
+    // 已开启保存登录状态时，只按用户此前是否选择记录密码来决定是否补存
+    if (username != null && password != null) {
+      await state.saveCredentials(username, password);
+    }
+  } else if (context.mounted) {
+    // 默认不保存：登录成功后询问一次，避免用户以为「刚登录就失效」
+    await promptSaveLogin(
+      context,
+      state,
+      username: username,
+      password: password,
+    );
   }
-  return ok;
+  return true;
 }
