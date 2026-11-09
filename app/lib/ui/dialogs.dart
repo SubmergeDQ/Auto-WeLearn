@@ -410,10 +410,11 @@ Future<void> showRunSettings(BuildContext context) async {
               children: [
                 _RangeField(
                   label: '每节等待（秒）',
-                  min: 30,
-                  max: 900,
-                  range: draft.waitMin.toDouble().clamp(30, 900),
-                  range2: draft.waitMax.toDouble().clamp(30, 900),
+                  min: 0,
+                  max: 1200,
+                  range: draft.waitMin.toDouble().clamp(0, 1200),
+                  range2: draft.waitMax.toDouble().clamp(0, 1200),
+                  step: 10,
                   onChange: (a, b) => setLocal(
                     () => draft = draft.copyWith(waitMin: a, waitMax: b),
                   ),
@@ -574,6 +575,7 @@ class _RangeField extends StatelessWidget {
     required this.range,
     required this.range2,
     required this.onChange,
+    this.step = 1,
   });
 
   final String label;
@@ -583,10 +585,14 @@ class _RangeField extends StatelessWidget {
   final double range2;
   final void Function(int a, int b) onChange;
 
+  /// 取值步长：等待时长按 10 秒一档，和任务页保持一致。
+  final int step;
+
   @override
   Widget build(BuildContext context) {
     final start = range < range2 ? range : range2;
     final end = range < range2 ? range2 : range;
+    int snap(double v) => (v / step).round() * step;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -604,7 +610,7 @@ class _RangeField extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '${start.round()} – ${end.round()}',
+                '${snap(start)} – ${snap(end)}',
                 style: monoStyle(size: 11.5, color: Tokens.textPrimary),
               ),
             ],
@@ -613,11 +619,11 @@ class _RangeField extends StatelessWidget {
             values: RangeValues(start, end),
             min: min,
             max: max,
-            divisions: (max - min).round(),
+            divisions: ((max - min) / step).round(),
             activeColor: Tokens.accent,
             inactiveColor: Tokens.mutedSoft,
-            labels: RangeLabels('${start.round()}', '${end.round()}'),
-            onChanged: (v) => onChange(v.start.round(), v.end.round()),
+            labels: RangeLabels('${snap(start)}', '${snap(end)}'),
+            onChanged: (v) => onChange(snap(v.start), snap(v.end)),
           ),
         ],
       ),

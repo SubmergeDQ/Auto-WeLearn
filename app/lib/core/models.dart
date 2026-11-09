@@ -251,11 +251,11 @@ class CourseMeta {
   final String classid;
 }
 
-/// 等待时长按 10 秒一档（30–900）。
+/// 等待时长按 10 秒一档（0–1200）。
 /// 旧版本可能保存任意偶数，读取时归一化到最近的 10 秒，避免界面显示与运行值不一致。
 int normalizeWaitSeconds(int value) {
-  const min = 30;
-  const max = 900;
+  const min = 0;
+  const max = 1200;
   const step = 10;
   final clamped = value < min ? min : (value > max ? max : value);
   final snapped = ((clamped - min) / step).round() * step + min;

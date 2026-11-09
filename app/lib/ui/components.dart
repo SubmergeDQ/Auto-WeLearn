@@ -589,15 +589,20 @@ class RangeField extends StatefulWidget {
   State<RangeField> createState() => _RangeFieldState();
 }
 
-enum _RangeDragMode { start, end, both }
+enum _RangeDragMode { start, end, split }
 
 class _RangeFieldState extends State<RangeField> {
   /// 拖动中的原始值；为 null 时显示外部传入的吸附值
   RangeValues? _drag;
 
   /// 原生 RangeSlider 在两个 thumb 靠得太近时无法分别命中，
-  /// 这里自己接管手势：接近时按距离选端点，完全重合时整体平移。
+  /// 这里自己接管手势：贴在一起时进入「拉开」模式，向左拖拉起点、
+  /// 向右拖拉止点，保证调到上限重合后还能再分开。
   _RangeDragMode? _mode;
+
+  /// 拉开模式下已经锁定的方向：-1 起点、1 止点、0 尚未决定。
+  /// 锁定方向后不会因为手指轻微回摆而换端点。
+  int _splitSign = 0;
   double _dragStartX = 0;
   RangeValues _dragStartValues = const RangeValues(0, 0);
 
@@ -633,7 +638,8 @@ class _RangeFieldState extends State<RangeField> {
   /// 此时手指已经越过 18px 判定阈值，很容易选错相邻端点；这里按下就锁定。
   RangeValues _downValues = const RangeValues(0, 0);
 
-  /// 拖动手势：离哪个端点近就拖哪个；两端完全重合时整体平移。
+  /// 拖动手势：离哪个端点近就拖哪个；两端重合或视觉上贴在一起时进入
+  /// 「拉开」模式，避免两个端点卡在同一个位置后无法分开。
   void _handlePanDown(
     DragDownDetails details,
     RangeValues values,
@@ -641,12 +647,13 @@ class _RangeFieldState extends State<RangeField> {
     double endX,
   ) {
     final x = details.localPosition.dx;
+    _splitSign = 0;
     final same = (values.end - values.start).abs() < 1e-9;
-    _mode = same || (endX - startX).abs() < 3
-        ? _RangeDragMode.both
+    _mode = same || (endX - startX).abs() < 12
+        ? _RangeDragMode.split
         : ((x - startX).abs() <= (x - endX).abs()
-            ? _RangeDragMode.start
-            : _RangeDragMode.end);
+              ? _RangeDragMode.start
+              : _RangeDragMode.end);
     _downValues = values;
   }
 
@@ -669,14 +676,20 @@ class _RangeFieldState extends State<RangeField> {
         a = (a + delta).clamp(widget.min, b);
       case _RangeDragMode.end:
         b = (b + delta).clamp(a, widget.max);
-      case _RangeDragMode.both:
-        // 重合时整体平移，区间宽度保持不变
-        final width = b - a;
-        a = (a + delta).clamp(
-          widget.min,
-          math.max(widget.min, widget.max - width),
-        );
-        b = a + width;
+      case _RangeDragMode.split:
+        // 重合或贴在一起时按拖动方向决定拉开哪个端点：
+        // 向左拖把起点拉开，向右拖把止点拉开。
+        // 方向一旦确定就锁定，手指轻微回摆不会换端点；
+        // 2 像素以内的抖动不算方向，避免刚按下就被微小位移带偏。
+        if (_splitSign == 0) {
+          if (delta.abs() < span / usable * 2) return;
+          _splitSign = delta < 0 ? -1 : 1;
+        }
+        if (_splitSign < 0) {
+          a = (a + delta).clamp(widget.min, b);
+        } else {
+          b = (b + delta).clamp(a, widget.max);
+        }
     }
 
     setState(() => _drag = RangeValues(a, b));
@@ -691,6 +704,7 @@ class _RangeFieldState extends State<RangeField> {
     setState(() {
       _drag = null;
       _mode = null;
+      _splitSign = 0;
     });
     widget.onChangeEnd?.call(a, b);
   }
@@ -718,6 +732,7 @@ class _RangeFieldState extends State<RangeField> {
     setState(() {
       _drag = null;
       _mode = null;
+      _splitSign = 0;
     });
     widget.onChanged(a, b);
     widget.onChangeEnd?.call(a, b);

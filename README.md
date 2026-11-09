@@ -2,17 +2,24 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.8**
+当前版本：**1.1.9**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.8.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.8.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.8-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.8-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.8.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.8.apk) | 通用包，versionName 1.1.8 / versionCode 11，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.1.9.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.9.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.1.9-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.9-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.1.9.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.9.apk) | 通用包，versionName 1.1.9 / versionCode 12，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装；「设置 → 关于 → 版本更新历史」可离线查看各版本更新内容。
+
+### 1.1.9 更新要点
+
+- 运行中登录失效会自动重登并继续当前任务：重新取回 Cookie 后从断点接着等待；平台静默返回 `ret != 0` 时也会先探一次会话，不再出现整段运行中断或每一节都判定失败。
+- 修复三个区间滑条两端重合后无法分开的问题：重合或贴近时向左拖拉开起点、向右拖拉开止点。
+- 每节等待时长范围调整为 0–1200 秒（仍按 10 秒一档），最低可直接提交，最长可等 20 分钟。
+- 修复面板「单元完成度」与「日志」的滚动条遮挡文字：滚动区域右侧留出滚动条槽位。
 
 ### 1.1.8 更新要点
 
@@ -113,7 +120,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 ### 运行引擎
 
 - 按勾选队列顺序执行；桌面与手机共用同一套运行逻辑。
-- 运行参数：每节等待时长（30–900 秒，按 **10 秒**一档）、目标正确率（90%–100%）、节间间隔（3–8 秒）、是否跳过口语题。
+- 运行参数：每节等待时长（0–1200 秒，按 **10 秒**一档）、目标正确率（90%–100%）、节间间隔（3–8 秒）、是否跳过口语题。
 - 运行卡展示当前节、倒计时、心跳次数、本节用时与总进度；节间间隔也单独显示「距离下一节 mm:ss」。
 - 口语小节通过「标题关键词 + 页面特征」双重识别；命中后直接跳过，不做整节等待。
 - 记录每节得分、等待时长、心跳次数与结果；面板页提供全部 / 心跳 / 异常三档日志筛选。
@@ -201,7 +208,7 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 1. 从 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest) 下载对应安装包（见文首「下载」）。
 2. Windows 安装版双击安装；便携版解压后运行 `welearn_app.exe`，不要只拷 exe，目录内的 DLL 与 `data` 必须保留。Android 直接安装 APK。
-3. 打开应用 → 设置 → 内置浏览器登录（或粘贴 Cookie）。
+3. 打开应用 → 设置 → 账号密码登录（或粘贴 Cookie）。
 4. 等待扫描完成 → 任务页勾选单元/小节 → 调整运行参数。
 5. 点击「开始运行」；面板页查看倒计时、心跳、日志与得分。
 6. 需要停止时点「停止」，当前节不会提交；桌面端可关闭到托盘继续运行，手机端可息屏并在通知栏查看进度与启停。
@@ -210,9 +217,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.8.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.8-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.8.apk` | Android 通用包，versionName 1.1.8 / versionCode 11，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.1.9.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.1.9-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.1.9.apk` | Android 通用包，versionName 1.1.9 / versionCode 12，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 

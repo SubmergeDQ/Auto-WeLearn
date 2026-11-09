@@ -504,8 +504,8 @@ void main() {
   });
 
   testWidgets('滑条两端可以拖到完全重合', (tester) async {
-    int started = 30;
-    int ended = 60;
+    int started = 300;
+    int ended = 600;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -540,11 +540,9 @@ void main() {
     final rect = tester.getRect(find.byType(RangeSlider));
     const inset = 14.0;
     final usable = rect.width - inset * 2;
-    // 右端点（60 秒）对应位置，往左拖动让两个端点重合到 30 秒
-    final endX = rect.left + inset + (60 - 30) / (900 - 30) * usable;
-    final gesture = await tester.startGesture(
-      Offset(endX, rect.center.dy),
-    );
+    // 右端点（600 秒）对应位置，往左拖动让两个端点重合到 300 秒
+    final endX = rect.left + inset + (600 - 30) / (900 - 30) * usable;
+    final gesture = await tester.startGesture(Offset(endX, rect.center.dy));
     await gesture.moveBy(const Offset(-40, 0));
     await tester.pump();
     await gesture.moveBy(Offset(-(usable * 0.5), 0));
@@ -552,9 +550,62 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(started, 30);
-    expect(ended, 30, reason: '两个端点应该能完全重合');
-    expect(find.text('30 – 30 秒'), findsOneWidget);
+    expect(started, 300);
+    expect(ended, 300, reason: '两个端点应该能完全重合');
+    expect(find.text('300 – 300 秒'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('滑条两端重合后还能再分开', (tester) async {
+    int started = 900;
+    int ended = 900;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setLocal) => Center(
+              child: SizedBox(
+                width: 300,
+                child: RangeField(
+                  label: '每节等待',
+                  min: 0,
+                  max: 1200,
+                  start: started,
+                  end: ended,
+                  suffix: ' 秒',
+                  step: 10,
+                  onChanged: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                  onChangeEnd: (a, b) => setLocal(() {
+                    started = a;
+                    ended = b;
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final rect = tester.getRect(find.byType(RangeSlider));
+    const inset = 14.0;
+    final usable = rect.width - inset * 2;
+    // 两个端点重合在 900 秒：向左拖应该把起点拉开，而不是整体平移
+    final x = rect.left + inset + 900 / 1200 * usable;
+    final gesture = await tester.startGesture(Offset(x, rect.center.dy));
+    await gesture.moveBy(const Offset(-20, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(-20, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(started, lessThan(900), reason: '起点应该被拉开');
+    expect(ended, 900, reason: '止点保持不动');
+    expect(find.text('$started – 900 秒'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -670,7 +721,7 @@ void main() {
         find.text('当前版本 $appVersion · 从新到旧共 ${releaseHistory.length} 个版本'),
         findsOneWidget,
       );
-      expect(find.text('1.1.8'), findsWidgets);
+      expect(find.text('1.1.9'), findsWidgets);
       expect(find.text('当前版本'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

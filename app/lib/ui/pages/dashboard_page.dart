@@ -782,11 +782,20 @@ class _UnitsCard extends StatelessWidget {
               ),
             )
           else if (fill)
-            Expanded(child: SingleChildScrollView(child: list))
+            // 右侧留出滚动条的位置，避免滚动条压住 "36/36" 这类计数文字
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(right: 10),
+                child: list,
+              ),
+            )
           else
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 230),
-              child: SingleChildScrollView(child: list),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(right: 10),
+                child: list,
+              ),
             ),
         ],
       ),
@@ -966,7 +975,13 @@ class _LogCard extends StatelessWidget {
               ),
             )
           else if (fill)
-            Expanded(child: ListView(children: [lines]))
+            // 右侧留出滚动条的位置，否则日志末尾会被滚动条盖住
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(right: 10),
+                children: [lines],
+              ),
+            )
           else
             lines,
         ],

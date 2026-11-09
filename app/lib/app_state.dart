@@ -1369,9 +1369,83 @@ class AppState extends ChangeNotifier {
     unawaited(_loop(m, queue));
   }
 
+  /// 运行中遇到登录失效：用保存的账号密码重登，成功后继续当前队列。
+  ///
+  /// 和启动恢复不同，这里不重置课程结构与运行统计，只换新 Cookie 并校验会话。
+  /// 返回 false 表示没有可用凭据或重登失败，调用方应停止本次运行。
+  Future<bool> _reloginForRun() async {
+    final acc = activeAccount;
+    if (acc == null || !acc.hasCredentials) {
+      lastError = '登录已失效，且没有保存账号密码，请重新登录';
+      addLog('warn', lastError!);
+      return false;
+    }
+    if (autoLoginAttempting) return false;
+
+    autoLoginAttempting = true;
+    lastError = '登录已失效，正在使用保存的账号密码自动登录…';
+    notifyListeners();
+    try {
+      final cookie = await AutoLoginService().login(
+        acc.username!,
+        acc.password!,
+      );
+      if (cookie == null || cookie.isEmpty) {
+        lastError = '自动重登失败，请稍后重试或手动登录';
+        addLog('warn', lastError!);
+        return false;
+      }
+      // 重登期间用户可能已经停止运行或退出登录，别再把人登回去
+      if (!running || activeAccount?.id != acc.id) return false;
+      // 复用当前账号记录，保留 UID 与账号密码，只换新 Cookie
+      _reuseAccountId = acc.id;
+      _session.setCookies({
+        for (final p in parseCookieInput(cookie)) p.key: p.value,
+      });
+      // 换完 Cookie 必须再校验一次：密码接口成功不代表 WeLearn 会话可用
+      courses = await _api.listCourses();
+      loggedIn = true;
+      _rememberAccount(cookie);
+      lastLoginAt = DateTime.now();
+      lastError = null;
+      addLog('info', '已使用保存的账号密码重新登录');
+      await _persist();
+      unawaited(refreshAvatar());
+      return true;
+    } on AppException catch (e) {
+      lastError = '自动重登失败：${e.message}';
+      addLog('warn', lastError!);
+      return false;
+    } catch (e) {
+      lastError = '自动重登失败：$e';
+      addLog('warn', lastError!);
+      return false;
+    } finally {
+      _reuseAccountId = null;
+      autoLoginAttempting = false;
+      notifyListeners();
+    }
+  }
+
+  /// 探一次会话是否还有效。只有平台明确判定登录态失效时才返回 true；
+  /// 网络/代理问题返回 false，避免把偶发断网当成掉登录而反复提交密码。
+  Future<bool> _sessionExpired() async {
+    try {
+      await _api.listCourses();
+      return false;
+    } on AppException catch (e) {
+      return e.isAuthExpired || e.code == AppErrorCode.badCredentials;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _loop(CourseMeta m, List<Lesson> queue) async {
     final rng = Random();
     final token = _token!;
+    // 本次运行是否已经尝试过自动重登：失败后不再排下一次，
+    // 避免每一节都重新提交一遍账号密码。
+    var reloginTried = false;
     try {
       for (var i = 0; i < queue.length; i++) {
         if (token.isCancelled) break;
@@ -1389,23 +1463,64 @@ class AppState extends ChangeNotifier {
         notifyListeners();
         _pushMobileTask(force: true);
 
-        final result = await runLesson(
-          api: _api,
-          meta: m,
-          lesson: lesson,
-          crate: crate,
-          waitSec: currentWait,
-          settings: settings,
-          token: token,
-          random: rng,
-          onLog: (level, message) => addLog(level, message),
-          onTick: (elapsed, beats) {
-            currentElapsed = elapsed;
-            currentHeartbeats = beats;
-            notifyListeners();
-            _pushMobileTask();
-          },
-        );
+        // 本节最多重登一次；第二轮仍失效说明凭据不可用，停止整个队列
+        var retried = false;
+        late LessonResult result;
+        while (true) {
+          token.throwIfCancelled();
+          try {
+            result = await runLesson(
+              api: _api,
+              meta: m,
+              lesson: lesson,
+              crate: crate,
+              waitSec: currentWait,
+              settings: settings,
+              token: token,
+              random: rng,
+              startElapsed: currentElapsed,
+              startHeartbeats: currentHeartbeats,
+              onLog: (level, message) => addLog(level, message),
+              onTick: (elapsed, beats) {
+                currentElapsed = elapsed;
+                currentHeartbeats = beats;
+                notifyListeners();
+                _pushMobileTask();
+              },
+            );
+            // Cookie 失效时平台有时只回 ret != 0，runLesson 只会记成失败，
+            // 走不到 authExpired；这里主动探一次会话，救回「每节都失败」的运行。
+            if (result.status != LessonStatus.failed ||
+                retried ||
+                token.isCancelled) {
+              break;
+            }
+            if (!await _sessionExpired()) break;
+            if (!await _reloginForRun()) {
+              reloginTried = true;
+              // 用户已经停止：按取消处理，不要把登录态改写成「已失效」
+              token.throwIfCancelled();
+              throw AppException(
+                AppErrorCode.authExpired,
+                lastError ?? '登录已失效，请重新登录',
+              );
+            }
+            reloginTried = true;
+            retried = true;
+            addLog('warn', '登录已恢复，从 ${currentElapsed}s 继续当前小节');
+          } on AppException catch (e) {
+            if (!e.isAuthExpired || retried) rethrow;
+            if (!await _reloginForRun()) {
+              reloginTried = true;
+              // 用户已经停止：按取消处理，不要把登录态改写成「已失效」
+              token.throwIfCancelled();
+              rethrow;
+            }
+            reloginTried = true;
+            retried = true;
+            addLog('warn', '登录已恢复，从 ${currentElapsed}s 继续当前小节');
+          }
+        }
 
         results[lesson.scoid] = result;
         statuses[lesson.scoid] = result.status;
@@ -1466,11 +1581,12 @@ class AppState extends ChangeNotifier {
       if (e.isAuthExpired) {
         loggedIn = false;
         final saved = activeAccount;
-        if (saved != null && saved.hasCredentials) {
+        if (!reloginTried && saved != null && saved.hasCredentials) {
           lastError = '登录已失效，正在尝试使用保存的账号密码自动登录…';
           _pendingAutoLogin = true;
         } else {
-          lastError = '登录已失效，请重新登录';
+          // 运行中已经试过重登（含失败），不再排下一次，避免反复提交密码
+          lastError = lastError ?? '登录已失效，请重新登录';
         }
         notifyListeners();
       }

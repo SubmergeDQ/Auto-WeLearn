@@ -12,6 +12,7 @@ import 'package:welearn_app/core/parser.dart';
 import 'package:welearn_app/core/release_notes.dart';
 import 'package:welearn_app/core/runner.dart';
 import 'package:welearn_app/core/scorm.dart';
+import 'package:welearn_app/core/session.dart';
 import 'package:welearn_app/core/updater.dart';
 import 'package:welearn_app/ui/components.dart' show snapToStep;
 import 'package:welearn_app/ui/widgets.dart' show relativeTimeText;
@@ -238,8 +239,9 @@ void main() {
       expect(normalizeWaitSeconds(301), 300);
       expect(normalizeWaitSeconds(899), 900);
       expect(normalizeWaitSeconds(300), 300);
-      expect(normalizeWaitSeconds(0), 30);
-      expect(normalizeWaitSeconds(1200), 900);
+      expect(normalizeWaitSeconds(0), 0);
+      expect(normalizeWaitSeconds(1200), 1200);
+      expect(normalizeWaitSeconds(5000), 1200);
     });
 
     test('区间两端相等时取固定值，不再随机', () {
@@ -247,6 +249,43 @@ void main() {
       expect(pickWait(300, 300, rng), 300);
       expect(pickCrate(100, 100, rng), 100);
       expect(pickInterval(0, 0, rng), 0);
+    });
+  });
+
+  group('断点续等', () {
+    test('登录失效重试从断点继续，不重复累计 total_time', () async {
+      final api = _KeepScoApi();
+      final outcome = await runKeepalive(
+        api: api,
+        meta: const CourseMeta(cid: '1', uid: '2', classid: '3'),
+        scoid: 's1',
+        totalBefore: 100,
+        targetSec: 2,
+        token: CancelToken(),
+        startElapsed: 1,
+        startHeartbeats: 1,
+      );
+
+      expect(outcome.elapsed, 2);
+      expect(outcome.heartbeats, 2, reason: '断点前的心跳次数保留');
+      expect(api.totalTimes, [101], reason: '只加断点之后新增的 1 秒');
+    });
+
+    test('重试时已经等满，不再补心跳', () async {
+      final api = _KeepScoApi();
+      final outcome = await runKeepalive(
+        api: api,
+        meta: const CourseMeta(cid: '1', uid: '2', classid: '3'),
+        scoid: 's1',
+        totalBefore: 100,
+        targetSec: 1,
+        token: CancelToken(),
+        startElapsed: 1,
+        startHeartbeats: 1,
+      );
+
+      expect(outcome.elapsed, 1);
+      expect(api.totalTimes, isEmpty);
     });
   });
 
@@ -598,4 +637,28 @@ void main() {
       expect(parseReleaseNotes('  \n\n'), isEmpty);
     });
   });
+}
+
+/// 只记录心跳上报的 total_time，用来验证登录失效后的断点续等累计口径。
+class _KeepScoApi extends Api {
+  _KeepScoApi()
+      : super(
+          Session(
+            baseUrl: 'https://welearn.sflep.com',
+            userAgent: 'test-agent',
+          ),
+        );
+
+  final List<int> totalTimes = [];
+
+  @override
+  Future<bool> keepSco(
+    CourseMeta meta,
+    String scoid, {
+    required int sessionTime,
+    required int totalTime,
+  }) async {
+    totalTimes.add(totalTime);
+    return true;
+  }
 }

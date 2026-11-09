@@ -1006,8 +1006,9 @@ class _RunPanelState extends State<_RunPanel> {
         const SizedBox(height: 10),
         RangeField(
           label: '每节等待',
-          min: 30,
-          max: 900,
+          // 最低 0 秒（不等直接提交），最高 1200 秒，覆盖 20 分钟一节的长课
+          min: 0,
+          max: 1200,
           start: _draft.waitMin,
           end: _draft.waitMax,
           suffix: ' 秒',

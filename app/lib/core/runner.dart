@@ -132,6 +132,9 @@ class KeepaliveOutcome {
 }
 
 /// 等待 + 心跳。30–40s 上报一次，结束时补一次。
+///
+/// [startElapsed] / [startHeartbeats] 用于登录失效重试：从断点继续等待，
+/// 已经上报过的秒数不再重复计入 total_time。
 Future<KeepaliveOutcome> runKeepalive({
   required Api api,
   required CourseMeta meta,
@@ -140,15 +143,18 @@ Future<KeepaliveOutcome> runKeepalive({
   required int targetSec,
   required CancelToken token,
   Random? random,
+  int startElapsed = 0,
+  int startHeartbeats = 0,
   void Function(int elapsed)? onTick,
   void Function(bool ok, int elapsed)? onBeat,
   void Function(String message)? onLog,
 }) async {
   final rng = random ?? Random();
-  var elapsed = 0;
-  var heartbeats = 0;
+  var elapsed = startElapsed.clamp(0, targetSec);
+  var heartbeats = startHeartbeats;
   var supported = true;
-  var nextBeat = randomInt(30, 40, rng);
+  var nextBeat = elapsed + randomInt(30, 40, rng);
+  var waited = false;
 
   Future<void> beat() async {
     try {
@@ -156,7 +162,8 @@ Future<KeepaliveOutcome> runKeepalive({
         meta,
         scoid,
         sessionTime: elapsed,
-        totalTime: totalBefore + elapsed,
+        // 本节真正新增的秒数；重登续跑时扣掉断点前已经上报的部分
+        totalTime: totalBefore + elapsed - startElapsed,
       );
       if (ok) {
         heartbeats++;
@@ -179,6 +186,7 @@ Future<KeepaliveOutcome> runKeepalive({
       step: const Duration(milliseconds: 250),
     );
     elapsed++;
+    waited = true;
     onTick?.call(elapsed);
 
     if (elapsed >= nextBeat && elapsed < targetSec) {
@@ -186,7 +194,8 @@ Future<KeepaliveOutcome> runKeepalive({
       nextBeat = elapsed + randomInt(30, 40, rng);
     }
   }
-  if (targetSec > 0) await beat();
+  // 已经等满（重登后从断点续跑）时不再补心跳，避免重复上报
+  if (targetSec > 0 && waited) await beat();
   onTick?.call(elapsed);
 
   return KeepaliveOutcome(
@@ -197,6 +206,9 @@ Future<KeepaliveOutcome> runKeepalive({
 }
 
 /// 单节状态机：解析 → startsco → 等待保活 → setscoinfo → savescoinfo
+///
+/// [startElapsed] / [startHeartbeats] 供登录失效后重试使用：调用方把上一次
+/// 已经等待的秒数传进来，本节从断点继续，而不是从头再等一遍。
 Future<LessonResult> runLesson({
   required Api api,
   required CourseMeta meta,
@@ -206,12 +218,14 @@ Future<LessonResult> runLesson({
   required RunSettings settings,
   required CancelToken token,
   Random? random,
+  int startElapsed = 0,
+  int startHeartbeats = 0,
   void Function(String level, String message)? onLog,
   void Function(int elapsed, int heartbeats)? onTick,
 }) async {
   final rng = random ?? Random();
-  var heartbeats = 0;
-  var elapsed = 0;
+  var heartbeats = startHeartbeats;
+  var elapsed = startElapsed;
 
   try {
     final address = await api.getScoAddr(
@@ -244,15 +258,14 @@ Future<LessonResult> runLesson({
     final noSubmittable = parsed.questions.isEmpty;
     final mostlyOral =
         parsed.oral > 0 && parsed.oral >= parsed.questions.length;
-    if (settings.skipOralLesson &&
-        (oralTitle || noSubmittable || mostlyOral)) {
+    if (settings.skipOralLesson && (oralTitle || noSubmittable || mostlyOral)) {
       final reason = oralTitle
           ? '标题识别为口语小节，已跳过等待'
           : (noSubmittable
-              ? (parsed.oralPage
-                  ? '识别为口语小节（页面含录音/语音特征），已跳过等待'
-                  : '未解析到可提交题目，已跳过等待')
-              : '口语题多于可提交题，按口语小节跳过等待');
+                ? (parsed.oralPage
+                      ? '识别为口语小节（页面含录音/语音特征），已跳过等待'
+                      : '未解析到可提交题目，已跳过等待')
+                : '口语题多于可提交题，按口语小节跳过等待');
       onLog?.call('info', reason);
       return LessonResult(
         scoid: lesson.scoid,
@@ -279,7 +292,7 @@ Future<LessonResult> runLesson({
     }
 
     // 两次心跳之间的增量：日志里前面写本次加了多少，后面写本节累计
-    var lastBeatAt = 0;
+    var lastBeatAt = startElapsed;
     final ka = await runKeepalive(
       api: api,
       meta: meta,
@@ -288,6 +301,8 @@ Future<LessonResult> runLesson({
       targetSec: waitSec,
       token: token,
       random: rng,
+      startElapsed: startElapsed,
+      startHeartbeats: startHeartbeats,
       onTick: (e) {
         elapsed = e;
         onTick?.call(e, heartbeats);
@@ -304,9 +319,11 @@ Future<LessonResult> runLesson({
     heartbeats = ka.heartbeats;
 
     final sessionTime = ka.elapsed;
+    // 重登续跑时本次真正新增的秒数，避免 total_time 把断点前的时长算两遍
+    final learned = ka.elapsed - startElapsed;
     final totalTime = settings.cmiTime == 'session'
-        ? sessionTime
-        : totalBefore + sessionTime;
+        ? learned
+        : totalBefore + learned;
     final data = buildScoData(
       interactions: bundle.interactions,
       crate: crate,
