@@ -1,7 +1,7 @@
 param(
   [string]$ReleaseDir = (Resolve-Path (Join-Path $PSScriptRoot '..\release\gui-windows')).Path,
-  [string]$OutFile = (Join-Path $PSScriptRoot '..\release\WeLearn-Setup-1.1.9.exe'),
-  [string]$Version = '1.1.9'
+  [string]$OutFile = (Join-Path $PSScriptRoot '..\release\WeLearn-Setup-1.2.0.exe'),
+  [string]$Version = '1.2.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,6 +91,26 @@ VIAddVersionKey "ProductVersion" "`${APP_VERSION}"
 !insertmacro MUI_LANGUAGE "English"
 
 Section "Install"
+  ; 旧版在托盘后台运行时仍会占用 welearn_app.exe，直接覆盖会失败。
+  ; 先等它自行退出（应用内更新会主动退出，最多等约 10 秒），
+  ; 仍未退出（手动双击安装包的情况）就强制结束，再开始复制文件。
+  StrCpy `$R9 0
+  wait_app_exit:
+    ; find 命中时返回码为 0，说明旧进程还在；未命中为 1，可以开始安装。
+    ; nsExec 把输出和返回码一起压栈，这里两个都看一眼，不依赖压栈顺序。
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq welearn_app.exe" /NH | find /I "welearn_app.exe"'
+    Pop `$R8
+    Pop `$R7
+    StrCmp `$R8 "0" still_running
+    StrCmp `$R7 "0" still_running app_gone
+  still_running:
+    Sleep 300
+    IntOp `$R9 `$R9 + 1
+    IntCmp `$R9 12 app_gone wait_app_exit wait_app_exit
+  app_gone:
+  nsExec::ExecToStack 'cmd /c taskkill /IM welearn_app.exe /F'
+  Sleep 400
+
   SetOutPath "`$INSTDIR"
   File /r "`${PAYLOAD}\*.*"
   WriteUninstaller "`$INSTDIR\uninstall.exe"

@@ -322,9 +322,14 @@ class AppState extends ChangeNotifier {
   }
 
   LessonStatus statusOf(String scoid) {
-    final st = statuses[scoid];
-    if (st != null) return st;
     final lesson = lessons.where((l) => l.scoid == scoid).firstOrNull;
+    final st = statuses[scoid];
+    // 平台已经把这一节标记为完成时，本地留着的「失败」只是上次运行的旧结论。
+    // 重新扫描后必须让完成态覆盖它，否则列表里一直显示失败、也不会自动勾回待处理。
+    if (lesson != null && lesson.complete && st == LessonStatus.failed) {
+      return LessonStatus.done;
+    }
+    if (st != null) return st;
     if (lesson != null && lesson.complete) return LessonStatus.done;
     return LessonStatus.pending;
   }
@@ -842,8 +847,8 @@ class AppState extends ChangeNotifier {
 
   /// 安装已下载的更新包。
   ///
-  /// Windows：启动 NSIS 安装程序（安装版带 `/S` 静默安装），随后退出进程，
-  /// 让安装程序覆盖正在运行的 exe；Android：交给系统安装器。
+  /// Windows：拉起带界面的安装程序，随后退出进程，让安装程序覆盖正在运行的 exe；
+  /// Android：交给系统安装器。
   Future<bool> installUpdate(String path) async {
     if (Platform.isWindows) {
       if (!path.toLowerCase().endsWith('.exe')) {
@@ -855,10 +860,21 @@ class AppState extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      await Process.start(path, ['/S'], mode: ProcessStartMode.detached);
-      addLog('info', '安装程序已启动，应用将在 1 秒内退出并完成更新');
+      try {
+        // 不要带 /S：静默安装不会显示任何窗口，用户既看不到进度，
+        // 失败时也完全没提示。带界面启动后由用户确认，结束页会自动拉起新版。
+        await Process.start(path, const [], mode: ProcessStartMode.detached);
+      } catch (e) {
+        updateError = '无法启动安装程序：$e';
+        addLog('warn', updateError!);
+        notifyListeners();
+        return false;
+      }
+      addLog('info', '安装程序已启动，应用即将退出，完成后会自动打开新版本');
       notifyListeners();
-      await Future<void>.delayed(const Duration(seconds: 1));
+      // 给安装程序一点初始化时间再退出；但必须退出，
+      // 否则 welearn_app.exe 一直被占用，安装器覆盖文件会失败。
+      await Future<void>.delayed(const Duration(milliseconds: 600));
       exit(0);
     }
 
@@ -1313,6 +1329,13 @@ class AppState extends ChangeNotifier {
         );
         units = scan.units;
         lessons = scan.lessons;
+        // 历史里留着的「失败」在平台已判完成时不再有效，直接丢掉，
+        // 避免状态映射继续压住平台的最新结论。
+        for (final lesson in scan.lessons) {
+          if (lesson.complete && statuses[lesson.scoid] == LessonStatus.failed) {
+            statuses.remove(lesson.scoid);
+          }
+        }
         // 默认全选待处理：延续"点开始就跑"的习惯，不想跑的点全不选即可
         selectedScoids
           ..clear()

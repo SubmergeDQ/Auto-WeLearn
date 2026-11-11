@@ -721,7 +721,7 @@ void main() {
         find.text('当前版本 $appVersion · 从新到旧共 ${releaseHistory.length} 个版本'),
         findsOneWidget,
       );
-      expect(find.text('1.1.9'), findsWidgets);
+      expect(find.text('1.2.0'), findsWidgets);
       expect(find.text('当前版本'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

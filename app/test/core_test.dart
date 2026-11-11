@@ -18,6 +18,10 @@ import 'package:welearn_app/ui/components.dart' show snapToStep;
 import 'package:welearn_app/ui/widgets.dart' show relativeTimeText;
 
 void main() {
+  // AppState 初始化时会读取本地状态并同步移动端后台服务，
+  // 这些都会走平台通道，单元测试里需要一个已初始化的测试绑定。
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('browser_login', () {
     test('学生主页算已登录', () {
       expect(
@@ -286,6 +290,39 @@ void main() {
 
       expect(outcome.elapsed, 1);
       expect(api.totalTimes, isEmpty);
+    });
+  });
+
+  group('小节状态覆盖', () {
+    test('平台已判完成时，本地旧的失败状态被覆盖为已完成', () {
+      final state = AppState()
+        ..lessons = const [
+          Lesson(
+            unitIndex: 0,
+            scoid: 's1',
+            location: 'Unit 1 > Text A',
+            visible: true,
+            complete: true,
+            learnTime: '',
+            crateLabel: '',
+          ),
+          Lesson(
+            unitIndex: 0,
+            scoid: 's2',
+            location: 'Unit 1 > Text B',
+            visible: true,
+            complete: false,
+            learnTime: '',
+            crateLabel: '',
+          ),
+        ]
+        ..statuses['s1'] = LessonStatus.failed
+        ..statuses['s2'] = LessonStatus.failed;
+
+      expect(state.statusOf('s1'), LessonStatus.done);
+      expect(state.statusOf('s2'), LessonStatus.failed, reason: '未完成的节仍保留失败');
+      expect(state.doneCount, 1);
+      expect(state.failedCount, 1);
     });
   });
 

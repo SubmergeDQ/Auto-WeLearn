@@ -2,17 +2,23 @@
 
 WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter 代码，桌面端支持托盘常驻，手机端支持 Wake Lock、前台常驻通知与通知栏任务控制；所有账号、课程与运行数据只保存在本机。
 
-当前版本：**1.1.9**
+当前版本：**1.2.0**
 
 ## 下载
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows（推荐） | [WeLearn-Setup-1.1.9.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.1.9.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
-| Windows（便携） | [WeLearn-1.1.9-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.1.9-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
-| Android | [welearn-app-1.1.9.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.1.9.apk) | 通用包，versionName 1.1.9 / versionCode 12，含 arm64 / armv7 / x64 |
+| Windows（推荐） | [WeLearn-Setup-1.2.0.exe](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-Setup-1.2.0.exe) | 安装版，当前用户安装，不弹 UAC，带桌面 / 开始菜单快捷方式与卸载项 |
+| Windows（便携） | [WeLearn-1.2.0-portable.zip](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/WeLearn-1.2.0-portable.zip) | 解压即用，需保留同目录 DLL 与 `data` |
+| Android | [welearn-app-1.2.0.apk](https://github.com/SubmergeDQ/Auto-WeLearn/releases/latest/download/welearn-app-1.2.0.apk) | 通用包，versionName 1.2.0 / versionCode 13，含 arm64 / armv7 / x64 |
 
 更多历史版本见 [Releases](https://github.com/SubmergeDQ/Auto-WeLearn/releases)。应用内「设置 → 关于 → 检查更新」也会从 GitHub 读取最新 Release，并支持一键下载安装；「设置 → 关于 → 版本更新历史」可离线查看各版本更新内容。
+
+### 1.2.0 更新要点
+
+- 修复电脑端在后台（托盘）运行时无法安装新版的问题：安装程序会先等旧进程退出，超过 10 秒仍未退出就直接结束进程，再覆盖安装目录里的文件。
+- 修复电脑端软件内更新后不弹出安装窗口的问题：更新改为启动带界面的安装程序，不再静默安装；装完可在结束页直接运行新版本。
+- 修复被标记为失败的课程小节在重新扫描后仍显示失败的问题：平台已判定完成时，完成态会覆盖本地的旧失败记录。
 
 ### 1.1.9 更新要点
 
@@ -217,9 +223,9 @@ WE Learn 学习助手的 Windows 桌面端与 Android 客户端。一套 Flutter
 
 | 产物 | 说明 |
 | --- | --- |
-| `WeLearn-Setup-1.1.9.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
-| `WeLearn-1.1.9-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
-| `welearn-app-1.1.9.apk` | Android 通用包，versionName 1.1.9 / versionCode 12，含 arm64 / armv7 / x64 |
+| `WeLearn-Setup-1.2.0.exe` | Windows 安装版，当前用户安装，不弹 UAC，带桌面/开始菜单快捷方式与卸载项 |
+| `WeLearn-1.2.0-portable.zip` | Windows 便携版，解压即用，需保留同目录 DLL 与 `data` |
+| `welearn-app-1.2.0.apk` | Android 通用包，versionName 1.2.0 / versionCode 13，含 arm64 / armv7 / x64 |
 
 历史命令行版本仍保留在仓库的 TypeScript 代码中，图形界面版与它共用同一套平台接口逻辑。
 
